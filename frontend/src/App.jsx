@@ -1,8 +1,74 @@
+
+import { useState } from 'react'
+import { GoogleLogin } from '@react-oauth/google'
+
 function App() {
+  const [status, setStatus] = useState('')
+  const [accessToken, setAccessToken] = useState(null)
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setStatus('Signing in with Locus...')
+
+    try {
+      const response = await fetch(
+        'http://localhost:8080/api/v1/auth/google',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            idToken: credentialResponse.credential,
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Backend returned ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (!data.accessToken || data.tokenType !== 'Bearer') {
+        throw new Error('Invalid authentication response')
+      }
+
+      setAccessToken(data.accessToken)
+      setStatus('Successfully authenticated with Locus!')
+
+    } catch (error) {
+      console.error('Authentication error:', error.message)
+      setAccessToken(null)
+      setStatus(`Authentication failed: ${error.message}`)
+    }
+  }
+
+  const handleLogout = () => {
+    setAccessToken(null)
+    setStatus('Logged out of Locus')
+  }
+
   return (
-    <main>
+    <main style={{ padding: '40px' }}>
       <h1>Locus</h1>
-      <p>Test client for the Locus parking rental service.</p>
+      <p>Parking Rental Platform</p>
+
+      {!accessToken ? (
+        <GoogleLogin
+          onSuccess={handleGoogleSuccess}
+          onError={() => setStatus('Google Sign-In failed')}
+        />
+      ) : (
+        <div>
+          <h2>Authentication successful!</h2>
+          <p>You received a Locus JWT bearer token.</p>
+          <button onClick={handleLogout}>
+            Log out
+          </button>
+        </div>
+      )}
+
+      <p role="status">{status}</p>
     </main>
   )
 }
