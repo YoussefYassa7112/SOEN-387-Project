@@ -65,6 +65,23 @@ class ParkingSpotSearchTest {
                 () -> service.search(null, null, null, null, null, 101, 0));
     }
 
+    @Test
+    void locationMatchesPartOfTheAddressIgnoringCase() {
+        when(repository.findAllActiveWithWindows()).thenReturn(List.of(
+                spot("1455 De Maisonneuve Blvd, Montreal", "5.00", ParkingType.GARAGE),
+                spot("10 Bank St, Ottawa", "5.00", ParkingType.GARAGE)));
+
+        ParkingSpotPageResponse page = service.search("montreal", null, null, null, null, 20, 0);
+
+        assertEquals(1, page.total());
+    }
+
+    @Test
+    void blankLocationIsRejected() {
+        assertThrows(InvalidRequestException.class,
+                () -> service.search("   ", null, null, null, null, 20, 0));
+    }
+
     private ParkingSpot spot(String address, String price, ParkingType type) {
         ParkingSpot spot = new ParkingSpot(UUID.randomUUID(), "Spot", null, address, null,
                 new BigDecimal(price), type, null);
