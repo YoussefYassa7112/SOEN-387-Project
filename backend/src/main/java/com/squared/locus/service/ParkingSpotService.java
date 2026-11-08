@@ -10,6 +10,7 @@ import com.squared.locus.repository.ParkingSpotRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -110,10 +111,11 @@ public class ParkingSpotService {
 
     @Transactional(readOnly = true)
     public ParkingSpotPageResponse search(String location, OffsetDateTime startTime, OffsetDateTime endTime,
-                                          int limit, int offset) {
+                                          BigDecimal maxPricePerHour, int limit, int offset) {
         checkPaging(limit, offset);
         checkLocation(location);
         checkOptionalInterval(startTime, endTime);
+        checkMaxPrice(maxPricePerHour);
 
         List<UUID> reservedSpotIds = new ArrayList<>();
         if (startTime != null) {
@@ -123,7 +125,8 @@ public class ParkingSpotService {
         List<ParkingSpot> matches = new ArrayList<>();
         for (ParkingSpot spot : parkingSpotRepository.findAllActiveWithWindows()) {
             if (matchesLocation(spot, location)
-                    && matchesInterval(spot, startTime, endTime, reservedSpotIds)) {
+                    && matchesInterval(spot, startTime, endTime, reservedSpotIds)
+                    && matchesMaxPrice(spot, maxPricePerHour)) {
                 matches.add(spot);
             }
         }
@@ -201,6 +204,19 @@ public class ParkingSpotService {
             return true;
         }
         return spot.isOpenDuring(startTime, endTime) && !reservedSpotIds.contains(spot.getId());
+    }
+
+    private void checkMaxPrice(BigDecimal maxPricePerHour) {
+        if (maxPricePerHour != null && maxPricePerHour.signum() < 0) {
+            throw new InvalidRequestException("INVALID_PRICE", "maxPricePerHour cannot be negative.");
+        }
+    }
+
+    private boolean matchesMaxPrice(ParkingSpot spot, BigDecimal maxPricePerHour) {
+        if (maxPricePerHour == null) {
+            return true;
+        }
+        return spot.getPricePerHour().compareTo(maxPricePerHour) <= 0;
     }
 
     private ParkingSpot getOwnedSpotForUpdate(UUID spotId, UUID ownerId) {
