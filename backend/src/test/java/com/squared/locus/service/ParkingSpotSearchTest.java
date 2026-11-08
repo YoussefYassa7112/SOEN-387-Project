@@ -82,6 +82,42 @@ class ParkingSpotSearchTest {
                 () -> service.search("   ", null, null, null, null, 20, 0));
     }
 
+    @Test
+    void intervalKeepsOnlySpotsThatAreOpenAndNotReserved() {
+        ParkingSpot free = spot("1 Main St", "5.00", ParkingType.GARAGE);
+        ParkingSpot reserved = spot("2 Main St", "5.00", ParkingType.GARAGE);
+        when(repository.findAllActiveWithWindows()).thenReturn(List.of(free, reserved));
+        when(repository.findReservedSpotIds(NINE, NOON)).thenReturn(List.of(reserved.getId()));
+
+        ParkingSpotPageResponse page = service.search(null, NINE, NOON, null, null, 20, 0);
+
+        assertEquals(1, page.total());
+        assertEquals("1 Main St", page.items().get(0).address());
+    }
+
+    @Test
+    void intervalOutsideTheOwnersWindowsFindsNothing() {
+        OffsetDateTime sixPm = FIVE.plusHours(1);
+        when(repository.findAllActiveWithWindows()).thenReturn(List.of(spot("1 Main St", "5.00", ParkingType.GARAGE)));
+        when(repository.findReservedSpotIds(NOON, sixPm)).thenReturn(List.of());
+
+        ParkingSpotPageResponse page = service.search(null, NOON, sixPm, null, null, 20, 0);
+
+        assertEquals(0, page.total());
+    }
+
+    @Test
+    void sendingOnlyOneTimeIsRejected() {
+        assertThrows(InvalidRequestException.class,
+                () -> service.search(null, NINE, null, null, null, 20, 0));
+    }
+
+    @Test
+    void endBeforeStartIsRejected() {
+        assertThrows(InvalidRequestException.class,
+                () -> service.search(null, NOON, NINE, null, null, 20, 0));
+    }
+
     private ParkingSpot spot(String address, String price, ParkingType type) {
         ParkingSpot spot = new ParkingSpot(UUID.randomUUID(), "Spot", null, address, null,
                 new BigDecimal(price), type, null);
