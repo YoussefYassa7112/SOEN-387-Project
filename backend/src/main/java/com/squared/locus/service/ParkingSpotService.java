@@ -1,10 +1,10 @@
-package com.locus.service;
+package com.squared.locus.service;
 
-import com.locus.api.dto.*;
-import com.locus.domain.AvailabilityWindow;
-import com.locus.domain.ParkingSpot;
-import com.locus.domain.ParkingSpot.ParkingType;
-import com.locus.repository.ParkingSpotRepository;
+import com.squared.locus.dto.*;
+import com.squared.locus.model.AvailabilityWindow;
+import com.squared.locus.model.ParkingSpot;
+import com.squared.locus.model.ParkingSpot.ParkingType;
+import com.squared.locus.repository.ParkingSpotRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

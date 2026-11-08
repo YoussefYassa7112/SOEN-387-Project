@@ -1,4 +1,4 @@
-package com.locus.api.dto;
+package com.squared.locus.dto;
 
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;

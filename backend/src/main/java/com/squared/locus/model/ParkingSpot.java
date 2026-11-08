@@ -1,4 +1,4 @@
-package com.locus.domain;
+package com.squared.locus.model;
 
 import jakarta.persistence.*;
 import lombok.Getter;

@@ -1,6 +1,6 @@
-package com.locus.repository;
+package com.squared.locus.repository;
 
-import com.locus.domain.ParkingSpot;
+import com.squared.locus.model.ParkingSpot;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;

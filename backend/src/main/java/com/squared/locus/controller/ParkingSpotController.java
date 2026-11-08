@@ -1,7 +1,7 @@
-package com.locus.api;
+package com.squared.locus.controller;
 
-import com.locus.api.dto.*;
-import com.locus.service.ParkingSpotService;
+import com.squared.locus.dto.*;
+import com.squared.locus.service.ParkingSpotService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/v1")
 @Validated
 public class ParkingSpotController {
     private final ParkingSpotService parkingSpotService;

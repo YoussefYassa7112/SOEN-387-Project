@@ -1,4 +1,4 @@
-package com.locus.service;
+package com.squared.locus.service;
 
 public class BusinessRuleException extends RuntimeException {
     public BusinessRuleException(String message) {
