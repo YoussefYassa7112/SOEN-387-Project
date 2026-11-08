@@ -78,4 +78,13 @@ public class ParkingSpotController {
             @RequestParam(defaultValue = "0") int offset) {
         return parkingSpotService.search(location, startTime, endTime, limit, offset);
     }
+
+    // LOCUS-24: check one spot for one time interval.
+    @GetMapping("/parking-spots/{spotId}/availability")
+    public AvailabilityResponse checkAvailability(
+            @PathVariable UUID spotId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startTime,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endTime) {
+        return parkingSpotService.checkAvailability(spotId, startTime, endTime);
+    }
 }

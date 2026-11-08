@@ -1,6 +1,7 @@
 package com.squared.locus.service;
 
 import com.squared.locus.domain.InvalidRequestException;
+import com.squared.locus.domain.NotFoundException;
 import com.squared.locus.dto.*;
 import com.squared.locus.model.AvailabilityWindow;
 import com.squared.locus.model.ParkingSpot;
@@ -135,6 +136,25 @@ public class ParkingSpotService {
             items.add(toResponse(spot));
         }
         return new ParkingSpotPageResponse(items, matches.size(), limit, offset);
+    }
+
+    @Transactional(readOnly = true)
+    public AvailabilityResponse checkAvailability(UUID spotId, OffsetDateTime startTime, OffsetDateTime endTime) {
+        checkInterval(startTime, endTime);
+
+        ParkingSpot spot = parkingSpotRepository.findById(spotId)
+                .orElseThrow(() -> new NotFoundException("SPOT_NOT_FOUND", "Parking spot not found."));
+
+        String reason = null;
+        if (!spot.isActive()) {
+            reason = "inactive";
+        } else if (!spot.isOpenDuring(startTime, endTime)) {
+            reason = "outsideOwnerAvailability";
+        } else if (parkingSpotRepository.findReservedSpotIds(startTime, endTime).contains(spotId)) {
+            reason = "alreadyReserved";
+        }
+
+        return new AvailabilityResponse(spotId, startTime, endTime, reason == null, reason);
     }
 
     private void checkPaging(int limit, int offset) {
