@@ -1,5 +1,6 @@
 package com.squared.locus.service;
 
+import com.squared.locus.domain.InvalidRequestException;
 import com.squared.locus.dto.*;
 import com.squared.locus.model.AvailabilityWindow;
 import com.squared.locus.model.ParkingSpot;
@@ -103,6 +104,31 @@ public class ParkingSpotService {
                 .stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ParkingSpotPageResponse search(int limit, int offset) {
+        checkPaging(limit, offset);
+
+        List<ParkingSpot> matches = parkingSpotRepository.findAllActiveWithWindows();
+
+        int from = Math.min(offset, matches.size());
+        int to = Math.min(from + limit, matches.size());
+
+        List<ParkingSpotResponse> items = new ArrayList<>();
+        for (ParkingSpot spot : matches.subList(from, to)) {
+            items.add(toResponse(spot));
+        }
+        return new ParkingSpotPageResponse(items, matches.size(), limit, offset);
+    }
+
+    private void checkPaging(int limit, int offset) {
+        if (limit < 1 || limit > 100) {
+            throw new InvalidRequestException("INVALID_LIMIT", "limit must be between 1 and 100.");
+        }
+        if (offset < 0) {
+            throw new InvalidRequestException("INVALID_OFFSET", "offset cannot be negative.");
+        }
     }
 
     private ParkingSpot getOwnedSpotForUpdate(UUID spotId, UUID ownerId) {

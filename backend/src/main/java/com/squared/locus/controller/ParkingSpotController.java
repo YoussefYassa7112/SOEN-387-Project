@@ -65,4 +65,12 @@ public class ParkingSpotController {
     public List<ParkingSpotResponse> getOwnerListings(@PathVariable UUID ownerId) {
         return parkingSpotService.getOwnerListings(ownerId);
     }
+
+    // LOCUS-21: browse active listings, one page at a time.
+    @GetMapping("/parking-spots")
+    public ParkingSpotPageResponse search(
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(defaultValue = "0") int offset) {
+        return parkingSpotService.search(limit, offset);
+    }
 }
