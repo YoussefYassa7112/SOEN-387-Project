@@ -1,6 +1,8 @@
 package com.squared.locus.service;
 
 import com.squared.locus.domain.InvalidRequestException;
+import com.squared.locus.domain.NotFoundException;
+import com.squared.locus.dto.AvailabilityResponse;
 import com.squared.locus.dto.ParkingSpotPageResponse;
 import com.squared.locus.model.AvailabilityWindow;
 import com.squared.locus.model.ParkingSpot;
@@ -15,10 +17,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /** Tests the search rules without a database: the repository is a mock. */
@@ -116,6 +122,59 @@ class ParkingSpotSearchTest {
     void endBeforeStartIsRejected() {
         assertThrows(InvalidRequestException.class,
                 () -> service.search(null, NOON, NINE, null, null, 20, 0));
+    }
+
+    @Test
+    void availableSpotHasNoReason() {
+        ParkingSpot spot = spot("1 Main St", "5.00", ParkingType.GARAGE);
+        when(repository.findById(spot.getId())).thenReturn(Optional.of(spot));
+        when(repository.findReservedSpotIds(NINE, NOON)).thenReturn(List.of());
+
+        AvailabilityResponse result = service.checkAvailability(spot.getId(), NINE, NOON);
+
+        assertTrue(result.available());
+        assertNull(result.reason());
+    }
+
+    @Test
+    void reservedSpotSaysAlreadyReserved() {
+        ParkingSpot spot = spot("1 Main St", "5.00", ParkingType.GARAGE);
+        when(repository.findById(spot.getId())).thenReturn(Optional.of(spot));
+        when(repository.findReservedSpotIds(NINE, NOON)).thenReturn(List.of(spot.getId()));
+
+        AvailabilityResponse result = service.checkAvailability(spot.getId(), NINE, NOON);
+
+        assertFalse(result.available());
+        assertEquals("alreadyReserved", result.reason());
+    }
+
+    @Test
+    void intervalOutsideWindowsSaysOutsideOwnerAvailability() {
+        ParkingSpot spot = spot("1 Main St", "5.00", ParkingType.GARAGE);
+        when(repository.findById(spot.getId())).thenReturn(Optional.of(spot));
+
+        AvailabilityResponse result = service.checkAvailability(spot.getId(), NOON, FIVE.plusHours(1));
+
+        assertEquals("outsideOwnerAvailability", result.reason());
+    }
+
+    @Test
+    void deactivatedSpotSaysInactive() {
+        ParkingSpot spot = spot("1 Main St", "5.00", ParkingType.GARAGE);
+        spot.setActive(false);
+        when(repository.findById(spot.getId())).thenReturn(Optional.of(spot));
+
+        AvailabilityResponse result = service.checkAvailability(spot.getId(), NINE, NOON);
+
+        assertEquals("inactive", result.reason());
+    }
+
+    @Test
+    void unknownSpotIsNotFound() {
+        UUID unknownId = UUID.randomUUID();
+        when(repository.findById(unknownId)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class, () -> service.checkAvailability(unknownId, NINE, NOON));
     }
 
     private ParkingSpot spot(String address, String price, ParkingType type) {
