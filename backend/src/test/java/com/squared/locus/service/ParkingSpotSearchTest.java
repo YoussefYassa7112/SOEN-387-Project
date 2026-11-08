@@ -177,6 +177,42 @@ class ParkingSpotSearchTest {
         assertThrows(NotFoundException.class, () -> service.checkAvailability(unknownId, NINE, NOON));
     }
 
+    @Test
+    void maxPriceKeepsSpotsAtOrBelowThePrice() {
+        when(repository.findAllActiveWithWindows()).thenReturn(List.of(
+                spot("Cheap", "4.00", ParkingType.GARAGE),
+                spot("Exact", "5.00", ParkingType.GARAGE),
+                spot("Expensive", "6.00", ParkingType.GARAGE)));
+
+        ParkingSpotPageResponse page = service.search(null, null, null, new BigDecimal("5"), null, 20, 0);
+
+        assertEquals(2, page.total());
+    }
+
+    @Test
+    void parkingTypeKeepsOnlyThatType() {
+        when(repository.findAllActiveWithWindows()).thenReturn(List.of(
+                spot("A", "5.00", ParkingType.GARAGE),
+                spot("B", "5.00", ParkingType.DRIVEWAY)));
+
+        ParkingSpotPageResponse page = service.search(null, null, null, null, "driveway", 20, 0);
+
+        assertEquals(1, page.total());
+        assertEquals("B", page.items().get(0).address());
+    }
+
+    @Test
+    void unknownParkingTypeIsRejected() {
+        assertThrows(InvalidRequestException.class,
+                () -> service.search(null, null, null, null, "boat", 20, 0));
+    }
+
+    @Test
+    void negativePriceIsRejected() {
+        assertThrows(InvalidRequestException.class,
+                () -> service.search(null, null, null, new BigDecimal("-1"), null, 20, 0));
+    }
+
     private ParkingSpot spot(String address, String price, ParkingType type) {
         ParkingSpot spot = new ParkingSpot(UUID.randomUUID(), "Spot", null, address, null,
                 new BigDecimal(price), type, null);
