@@ -80,6 +80,18 @@ public class ParkingSpot {
         }
     }
 
+    /** True when one of the owner's windows covers the whole interval (Chapter 5: the rule lives with the spot). */
+    public boolean isOpenDuring(OffsetDateTime startTime, OffsetDateTime endTime) {
+        for (AvailabilityWindow window : availabilityWindows) {
+            boolean startsInTime = !window.getStartTime().isAfter(startTime);
+            boolean endsInTime = !window.getEndTime().isBefore(endTime);
+            if (startsInTime && endsInTime) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) {
