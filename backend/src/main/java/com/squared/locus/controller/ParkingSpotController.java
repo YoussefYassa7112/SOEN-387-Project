@@ -69,16 +69,17 @@ public class ParkingSpotController {
         return parkingSpotService.getOwnerListings(ownerId);
     }
 
-    // LOCUS-21, 22 and 23: browse active listings, optionally by location and time interval.
+    // LOCUS-21, 22, 23 and 25: browse active listings, with optional search filters.
     @GetMapping("/parking-spots")
     public ParkingSpotPageResponse search(
             @RequestParam(required = false) String location,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startTime,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endTime,
             @RequestParam(required = false) BigDecimal maxPricePerHour,
+            @RequestParam(required = false) String parkingType,
             @RequestParam(defaultValue = "20") int limit,
             @RequestParam(defaultValue = "0") int offset) {
-        return parkingSpotService.search(location, startTime, endTime, maxPricePerHour, limit, offset);
+        return parkingSpotService.search(location, startTime, endTime, maxPricePerHour, parkingType, limit, offset);
     }
 
     // LOCUS-24: check one spot for one time interval.

@@ -111,11 +111,13 @@ public class ParkingSpotService {
 
     @Transactional(readOnly = true)
     public ParkingSpotPageResponse search(String location, OffsetDateTime startTime, OffsetDateTime endTime,
-                                          BigDecimal maxPricePerHour, int limit, int offset) {
+                                          BigDecimal maxPricePerHour, String parkingType,
+                                          int limit, int offset) {
         checkPaging(limit, offset);
         checkLocation(location);
         checkOptionalInterval(startTime, endTime);
         checkMaxPrice(maxPricePerHour);
+        ParkingType wantedType = parseParkingTypeFilter(parkingType);
 
         List<UUID> reservedSpotIds = new ArrayList<>();
         if (startTime != null) {
@@ -126,7 +128,8 @@ public class ParkingSpotService {
         for (ParkingSpot spot : parkingSpotRepository.findAllActiveWithWindows()) {
             if (matchesLocation(spot, location)
                     && matchesInterval(spot, startTime, endTime, reservedSpotIds)
-                    && matchesMaxPrice(spot, maxPricePerHour)) {
+                    && matchesMaxPrice(spot, maxPricePerHour)
+                    && (wantedType == null || wantedType == spot.getParkingType())) {
                 matches.add(spot);
             }
         }
@@ -217,6 +220,17 @@ public class ParkingSpotService {
             return true;
         }
         return spot.getPricePerHour().compareTo(maxPricePerHour) <= 0;
+    }
+
+    private ParkingType parseParkingTypeFilter(String parkingType) {
+        if (parkingType == null) {
+            return null;
+        }
+        try {
+            return ParkingType.fromDbValue(parkingType);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidRequestException("INVALID_PARKING_TYPE", "parkingType must be driveway, privateLot, garage or other.");
+        }
     }
 
     private ParkingSpot getOwnedSpotForUpdate(UUID spotId, UUID ownerId) {
