@@ -66,11 +66,12 @@ public class ParkingSpotController {
         return parkingSpotService.getOwnerListings(ownerId);
     }
 
-    // LOCUS-21: browse active listings, one page at a time.
+    // LOCUS-21 and LOCUS-22: browse active listings, optionally by location.
     @GetMapping("/parking-spots")
     public ParkingSpotPageResponse search(
+            @RequestParam(required = false) String location,
             @RequestParam(defaultValue = "20") int limit,
             @RequestParam(defaultValue = "0") int offset) {
-        return parkingSpotService.search(limit, offset);
+        return parkingSpotService.search(location, limit, offset);
     }
 }

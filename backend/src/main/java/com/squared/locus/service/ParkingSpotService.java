@@ -107,10 +107,16 @@ public class ParkingSpotService {
     }
 
     @Transactional(readOnly = true)
-    public ParkingSpotPageResponse search(int limit, int offset) {
+    public ParkingSpotPageResponse search(String location, int limit, int offset) {
         checkPaging(limit, offset);
+        checkLocation(location);
 
-        List<ParkingSpot> matches = parkingSpotRepository.findAllActiveWithWindows();
+        List<ParkingSpot> matches = new ArrayList<>();
+        for (ParkingSpot spot : parkingSpotRepository.findAllActiveWithWindows()) {
+            if (matchesLocation(spot, location)) {
+                matches.add(spot);
+            }
+        }
 
         int from = Math.min(offset, matches.size());
         int to = Math.min(from + limit, matches.size());
@@ -129,6 +135,19 @@ public class ParkingSpotService {
         if (offset < 0) {
             throw new InvalidRequestException("INVALID_OFFSET", "offset cannot be negative.");
         }
+    }
+
+    private void checkLocation(String location) {
+        if (location != null && (location.isBlank() || location.length() > 200)) {
+            throw new InvalidRequestException("INVALID_LOCATION", "location must be 1 to 200 characters.");
+        }
+    }
+
+    private boolean matchesLocation(ParkingSpot spot, String location) {
+        if (location == null) {
+            return true;
+        }
+        return spot.getAddress().toLowerCase().contains(location.trim().toLowerCase());
     }
 
     private ParkingSpot getOwnedSpotForUpdate(UUID spotId, UUID ownerId) {
