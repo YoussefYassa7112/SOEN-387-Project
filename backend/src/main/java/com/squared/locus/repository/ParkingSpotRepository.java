@@ -16,6 +16,11 @@ public interface ParkingSpotRepository extends JpaRepository<ParkingSpot, UUID> 
 
     Optional<ParkingSpot> findByIdAndActiveTrue(UUID id);
 
+    // Loads each spot together with its windows, so there is no extra query per spot.
+    @Query("select distinct p from ParkingSpot p left join fetch p.availabilityWindows "
+            + "where p.active = true order by p.createdAt desc, p.id")
+    List<ParkingSpot> findAllActiveWithWindows();
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from ParkingSpot p where p.id = :id and p.ownerId = :ownerId")
     Optional<ParkingSpot> findOwnedForUpdate(@Param("id") UUID id, @Param("ownerId") UUID ownerId);
