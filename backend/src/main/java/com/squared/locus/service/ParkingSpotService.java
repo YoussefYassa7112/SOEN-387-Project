@@ -9,6 +9,7 @@ import com.squared.locus.repository.ParkingSpotRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -107,13 +108,21 @@ public class ParkingSpotService {
     }
 
     @Transactional(readOnly = true)
-    public ParkingSpotPageResponse search(String location, int limit, int offset) {
+    public ParkingSpotPageResponse search(String location, OffsetDateTime startTime, OffsetDateTime endTime,
+                                          int limit, int offset) {
         checkPaging(limit, offset);
         checkLocation(location);
+        checkOptionalInterval(startTime, endTime);
+
+        List<UUID> reservedSpotIds = new ArrayList<>();
+        if (startTime != null) {
+            reservedSpotIds = parkingSpotRepository.findReservedSpotIds(startTime, endTime);
+        }
 
         List<ParkingSpot> matches = new ArrayList<>();
         for (ParkingSpot spot : parkingSpotRepository.findAllActiveWithWindows()) {
-            if (matchesLocation(spot, location)) {
+            if (matchesLocation(spot, location)
+                    && matchesInterval(spot, startTime, endTime, reservedSpotIds)) {
                 matches.add(spot);
             }
         }
@@ -148,6 +157,30 @@ public class ParkingSpotService {
             return true;
         }
         return spot.getAddress().toLowerCase().contains(location.trim().toLowerCase());
+    }
+
+    private void checkOptionalInterval(OffsetDateTime startTime, OffsetDateTime endTime) {
+        if (startTime == null && endTime == null) {
+            return;
+        }
+        if (startTime == null || endTime == null) {
+            throw new InvalidRequestException("INCOMPLETE_INTERVAL", "Send both startTime and endTime, or neither.");
+        }
+        checkInterval(startTime, endTime);
+    }
+
+    private void checkInterval(OffsetDateTime startTime, OffsetDateTime endTime) {
+        if (!endTime.isAfter(startTime)) {
+            throw new InvalidRequestException("INVALID_INTERVAL", "endTime must be after startTime.");
+        }
+    }
+
+    private boolean matchesInterval(ParkingSpot spot, OffsetDateTime startTime, OffsetDateTime endTime,
+                                    List<UUID> reservedSpotIds) {
+        if (startTime == null) {
+            return true;
+        }
+        return spot.isOpenDuring(startTime, endTime) && !reservedSpotIds.contains(spot.getId());
     }
 
     private ParkingSpot getOwnedSpotForUpdate(UUID spotId, UUID ownerId) {

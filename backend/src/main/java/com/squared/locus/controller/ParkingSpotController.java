@@ -4,10 +4,12 @@ import com.squared.locus.dto.*;
 import com.squared.locus.service.ParkingSpotService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -66,12 +68,14 @@ public class ParkingSpotController {
         return parkingSpotService.getOwnerListings(ownerId);
     }
 
-    // LOCUS-21 and LOCUS-22: browse active listings, optionally by location.
+    // LOCUS-21, 22 and 23: browse active listings, optionally by location and time interval.
     @GetMapping("/parking-spots")
     public ParkingSpotPageResponse search(
             @RequestParam(required = false) String location,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startTime,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endTime,
             @RequestParam(defaultValue = "20") int limit,
             @RequestParam(defaultValue = "0") int offset) {
-        return parkingSpotService.search(location, limit, offset);
+        return parkingSpotService.search(location, startTime, endTime, limit, offset);
     }
 }
