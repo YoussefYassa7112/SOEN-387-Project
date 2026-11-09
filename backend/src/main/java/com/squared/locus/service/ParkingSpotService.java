@@ -1,5 +1,7 @@
 package com.squared.locus.service;
 
+import com.squared.locus.domain.InvalidRequestException;
+import com.squared.locus.domain.NotFoundException;
 import com.squared.locus.dto.*;
 import com.squared.locus.model.AvailabilityWindow;
 import com.squared.locus.model.ParkingSpot;
@@ -8,6 +10,8 @@ import com.squared.locus.repository.ParkingSpotRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -103,6 +107,130 @@ public class ParkingSpotService {
                 .stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ParkingSpotPageResponse search(String location, OffsetDateTime startTime, OffsetDateTime endTime,
+                                          BigDecimal maxPricePerHour, String parkingType,
+                                          int limit, int offset) {
+        checkPaging(limit, offset);
+        checkLocation(location);
+        checkOptionalInterval(startTime, endTime);
+        checkMaxPrice(maxPricePerHour);
+        ParkingType wantedType = parseParkingTypeFilter(parkingType);
+
+        List<UUID> reservedSpotIds = new ArrayList<>();
+        if (startTime != null) {
+            reservedSpotIds = parkingSpotRepository.findReservedSpotIds(startTime, endTime);
+        }
+
+        List<ParkingSpot> matches = new ArrayList<>();
+        for (ParkingSpot spot : parkingSpotRepository.findAllActiveWithWindows()) {
+            if (matchesLocation(spot, location)
+                    && matchesInterval(spot, startTime, endTime, reservedSpotIds)
+                    && matchesMaxPrice(spot, maxPricePerHour)
+                    && (wantedType == null || wantedType == spot.getParkingType())) {
+                matches.add(spot);
+            }
+        }
+
+        int from = Math.min(offset, matches.size());
+        int to = Math.min(from + limit, matches.size());
+
+        List<ParkingSpotResponse> items = new ArrayList<>();
+        for (ParkingSpot spot : matches.subList(from, to)) {
+            items.add(toResponse(spot));
+        }
+        return new ParkingSpotPageResponse(items, matches.size(), limit, offset);
+    }
+
+    @Transactional(readOnly = true)
+    public AvailabilityResponse checkAvailability(UUID spotId, OffsetDateTime startTime, OffsetDateTime endTime) {
+        checkInterval(startTime, endTime);
+
+        ParkingSpot spot = parkingSpotRepository.findById(spotId)
+                .orElseThrow(() -> new NotFoundException("SPOT_NOT_FOUND", "Parking spot not found."));
+
+        String reason = null;
+        if (!spot.isActive()) {
+            reason = "inactive";
+        } else if (!spot.isOpenDuring(startTime, endTime)) {
+            reason = "outsideOwnerAvailability";
+        } else if (parkingSpotRepository.findReservedSpotIds(startTime, endTime).contains(spotId)) {
+            reason = "alreadyReserved";
+        }
+
+        return new AvailabilityResponse(spotId, startTime, endTime, reason == null, reason);
+    }
+
+    private void checkPaging(int limit, int offset) {
+        if (limit < 1 || limit > 100) {
+            throw new InvalidRequestException("INVALID_LIMIT", "limit must be between 1 and 100.");
+        }
+        if (offset < 0) {
+            throw new InvalidRequestException("INVALID_OFFSET", "offset cannot be negative.");
+        }
+    }
+
+    private void checkLocation(String location) {
+        if (location != null && (location.isBlank() || location.length() > 200)) {
+            throw new InvalidRequestException("INVALID_LOCATION", "location must be 1 to 200 characters.");
+        }
+    }
+
+    private boolean matchesLocation(ParkingSpot spot, String location) {
+        if (location == null) {
+            return true;
+        }
+        return spot.getAddress().toLowerCase().contains(location.trim().toLowerCase());
+    }
+
+    private void checkOptionalInterval(OffsetDateTime startTime, OffsetDateTime endTime) {
+        if (startTime == null && endTime == null) {
+            return;
+        }
+        if (startTime == null || endTime == null) {
+            throw new InvalidRequestException("INCOMPLETE_INTERVAL", "Send both startTime and endTime, or neither.");
+        }
+        checkInterval(startTime, endTime);
+    }
+
+    private void checkInterval(OffsetDateTime startTime, OffsetDateTime endTime) {
+        if (!endTime.isAfter(startTime)) {
+            throw new InvalidRequestException("INVALID_INTERVAL", "endTime must be after startTime.");
+        }
+    }
+
+    private boolean matchesInterval(ParkingSpot spot, OffsetDateTime startTime, OffsetDateTime endTime,
+                                    List<UUID> reservedSpotIds) {
+        if (startTime == null) {
+            return true;
+        }
+        return spot.isOpenDuring(startTime, endTime) && !reservedSpotIds.contains(spot.getId());
+    }
+
+    private void checkMaxPrice(BigDecimal maxPricePerHour) {
+        if (maxPricePerHour != null && maxPricePerHour.signum() < 0) {
+            throw new InvalidRequestException("INVALID_PRICE", "maxPricePerHour cannot be negative.");
+        }
+    }
+
+    private boolean matchesMaxPrice(ParkingSpot spot, BigDecimal maxPricePerHour) {
+        if (maxPricePerHour == null) {
+            return true;
+        }
+        return spot.getPricePerHour().compareTo(maxPricePerHour) <= 0;
+    }
+
+    private ParkingType parseParkingTypeFilter(String parkingType) {
+        if (parkingType == null) {
+            return null;
+        }
+        try {
+            return ParkingType.fromDbValue(parkingType);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidRequestException("INVALID_PARKING_TYPE", "parkingType must be driveway, privateLot, garage or other.");
+        }
     }
 
     private ParkingSpot getOwnedSpotForUpdate(UUID spotId, UUID ownerId) {

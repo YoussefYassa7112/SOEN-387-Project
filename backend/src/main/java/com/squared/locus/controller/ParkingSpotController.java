@@ -4,10 +4,13 @@ import com.squared.locus.dto.*;
 import com.squared.locus.service.ParkingSpotService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -64,5 +67,27 @@ public class ParkingSpotController {
     @GetMapping("/owners/{ownerId}/parking-spots")
     public List<ParkingSpotResponse> getOwnerListings(@PathVariable UUID ownerId) {
         return parkingSpotService.getOwnerListings(ownerId);
+    }
+
+    // LOCUS-21, 22, 23 and 25: browse active listings, with optional search filters.
+    @GetMapping("/parking-spots")
+    public ParkingSpotPageResponse search(
+            @RequestParam(required = false) String location,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startTime,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endTime,
+            @RequestParam(required = false) BigDecimal maxPricePerHour,
+            @RequestParam(required = false) String parkingType,
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(defaultValue = "0") int offset) {
+        return parkingSpotService.search(location, startTime, endTime, maxPricePerHour, parkingType, limit, offset);
+    }
+
+    // LOCUS-24: check one spot for one time interval.
+    @GetMapping("/parking-spots/{spotId}/availability")
+    public AvailabilityResponse checkAvailability(
+            @PathVariable UUID spotId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startTime,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endTime) {
+        return parkingSpotService.checkAvailability(spotId, startTime, endTime);
     }
 }
