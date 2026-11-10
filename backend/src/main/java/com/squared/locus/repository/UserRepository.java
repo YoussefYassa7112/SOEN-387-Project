@@ -8,7 +8,8 @@ import java.util.UUID;
 
 public interface UserRepository
         extends JpaRepository<User, UUID> {
-
+    
+    // Finds a user in the database by their Google subject (sub) identifier.
     Optional<User> findByGoogleSub(String googleSub);
 }
 
