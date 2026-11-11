@@ -3,6 +3,8 @@ package com.squared.locus.model;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -37,7 +39,9 @@ public class Reservation {
     @Column(name = "total_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalPrice;
 
-    @Column(name = "currency", nullable = false, columnDefinition = "CHAR(3)")
+    // The column is CHAR(3), not VARCHAR, so Hibernate's startup check needs to be told.
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "currency", nullable = false, length = 3)
     private String currency;
 
     @Column(name = "created_at", nullable = false, updatable = false)
