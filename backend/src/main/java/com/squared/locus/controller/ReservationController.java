@@ -26,9 +26,10 @@ public class ReservationController {
     public ResponseEntity<ReservationResponse> create(
             @PathVariable UUID spotId,
             @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody CreateReservationRequest request) {
         UUID userId = UUID.fromString(jwt.getSubject());
-        ReservationResponse reservation = reservationService.create(spotId, userId, request);
+        ReservationResponse reservation = reservationService.create(spotId, userId, idempotencyKey, request);
         return ResponseEntity
                 .accepted()
                 .location(URI.create("/api/v1/reservations/" + reservation.reservationId()))
