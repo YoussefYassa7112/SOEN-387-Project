@@ -222,6 +222,39 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Parking Spots]
+      summary: Replace a listing's complete availability schedule
+      operationId: setParkingSpotAvailability
+      description: |-
+        Replaces all availability windows of an owned, active listing.
+        Windows must end after they start and must not overlap.
+        A deactivated listing cannot be changed (409).
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetAvailability'
+      responses:
+        '200':
+          description: Updated spot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParkingSpot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /parking-spots/{spotId}/reservations:
     parameters:
       - $ref: '#/components/parameters/SpotId'
@@ -362,6 +395,8 @@ paths:
                   $ref: '#/components/schemas/ParkingSpot'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   securitySchemes:
     bearerAuth:
@@ -679,3 +714,14 @@ components:
         details:
           type: object
           additionalProperties: true
+
+    SetAvailability:
+      type: object
+      additionalProperties: false
+      required: [ periods ]
+      properties:
+        periods:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TimeWindow'

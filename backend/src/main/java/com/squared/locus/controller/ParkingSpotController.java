@@ -1,5 +1,6 @@
 package com.squared.locus.controller;
-
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import com.squared.locus.dto.*;
 import com.squared.locus.service.ParkingSpotService;
 import jakarta.validation.Valid;
@@ -8,8 +9,9 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
+import org.springframework.http.ResponseEntity;
 import java.math.BigDecimal;
+import java.net.URI;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -24,37 +26,49 @@ public class ParkingSpotController {
         this.parkingSpotService = parkingSpotService;
     }
 
-    // LOCUS-15: owner creates a listing.
+    // LOCUS-15: owner creates a listing (availabilityWindows required).
     @PostMapping("/parking-spots")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ParkingSpotResponse create(@Valid @RequestBody CreateParkingSpotRequest request) {
-        return parkingSpotService.create(request);
+    public ResponseEntity<ParkingSpotResponse> create(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody CreateParkingSpotRequest request) {
+
+        UUID callerId = UUID.fromString(jwt.getSubject());
+
+        ParkingSpotResponse created = parkingSpotService.create(callerId, request);
+
+        return ResponseEntity
+                .created(URI.create("/api/v1/parking-spots/" + created.spotId()))
+                .body(created);
+    }
+
+    // LOCUS 17: partial update of details and/or the complete availability schedule.
+    @PatchMapping("/parking-spots/{spotId}")
+    public ParkingSpotResponse update(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID spotId,
+            @Valid @RequestBody UpdateParkingSpotRequest request) {
+        UUID ownerId = UUID.fromString(jwt.getSubject());
+        return parkingSpotService.update(spotId, ownerId, request);
     }
 
     // LOCUS-16: replace the listing's complete availability schedule.
     @PutMapping("/parking-spots/{spotId}/availability")
     public ParkingSpotResponse setAvailability(
+            @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID spotId,
-            @RequestParam @NotNull UUID ownerId,
             @Valid @RequestBody SetAvailabilityRequest request) {
+        UUID ownerId = UUID.fromString(jwt.getSubject());
         return parkingSpotService.setAvailability(spotId, ownerId, request);
     }
 
-    // LOCUS-17: replace listing details.
-    @PutMapping("/parking-spots/{spotId}")
-    public ParkingSpotResponse update(
-            @PathVariable UUID spotId,
-            @RequestParam @NotNull UUID ownerId,
-            @Valid @RequestBody UpdateParkingSpotRequest request) {
-        return parkingSpotService.update(spotId, ownerId, request);
-    }
-
     // LOCUS-18: deactivate; the listing remains in the database.
-    @PatchMapping("/parking-spots/{spotId}/deactivate")
-    public ParkingSpotResponse deactivate(
-            @PathVariable UUID spotId,
-            @RequestParam @NotNull UUID ownerId) {
-        return parkingSpotService.deactivate(spotId, ownerId);
+    @DeleteMapping("/parking-spots/{spotId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deactivate(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID spotId) {
+        UUID ownerId = UUID.fromString(jwt.getSubject());
+        parkingSpotService.deactivate(spotId, ownerId);
     }
 
     // LOCUS-19: public details for an active listing.
@@ -63,9 +77,10 @@ public class ParkingSpotController {
         return parkingSpotService.getDetails(spotId);
     }
 
-    // LOCUS-20: owner's listings, including deactivated listings.
-    @GetMapping("/owners/{ownerId}/parking-spots")
-    public List<ParkingSpotResponse> getOwnerListings(@PathVariable UUID ownerId) {
+    // LOCUS-20: current owner's listings, including deactivated listings.
+    @GetMapping("/me/parking-spots")
+    public List<ParkingSpotResponse> getMyListings(@AuthenticationPrincipal Jwt jwt) {
+        UUID ownerId = UUID.fromString(jwt.getSubject());
         return parkingSpotService.getOwnerListings(ownerId);
     }
 
