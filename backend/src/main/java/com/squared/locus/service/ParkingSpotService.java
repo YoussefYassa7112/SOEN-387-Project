@@ -1,5 +1,8 @@
 package com.squared.locus.service;
-
+import com.squared.locus.repository.UserRepository;
+import com.squared.locus.model.User;
+import com.squared.locus.domain.ConflictException;
+import com.squared.locus.domain.ForbiddenException;
 import com.squared.locus.domain.InvalidRequestException;
 import com.squared.locus.domain.NotFoundException;
 import com.squared.locus.dto.*;
@@ -9,6 +12,8 @@ import com.squared.locus.model.ParkingSpot.ParkingType;
 import com.squared.locus.repository.ParkingSpotRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -20,15 +25,21 @@ import java.util.UUID;
 @Service
 public class ParkingSpotService {
     private final ParkingSpotRepository parkingSpotRepository;
+    private final UserRepository userRepository;
 
-    public ParkingSpotService(ParkingSpotRepository parkingSpotRepository) {
+    public ParkingSpotService(ParkingSpotRepository parkingSpotRepository, UserRepository userRepository) {
         this.parkingSpotRepository = parkingSpotRepository;
+        this.userRepository = userRepository;
+
     }
 
     @Transactional
-    public ParkingSpotResponse create(CreateParkingSpotRequest request) {
+    public ParkingSpotResponse create(UUID callerId,CreateParkingSpotRequest request) {
+        User owner = findUser(callerId);
+        List<AvailabilityWindow> windows = toValidatedWindows(request.availabilityWindows());
+
         ParkingSpot spot = new ParkingSpot(
-                request.ownerId(),
+                owner.getId(),
                 request.title(),
                 request.description(),
                 request.address(),
@@ -37,73 +48,78 @@ public class ParkingSpotService {
                 toParkingType(request.parkingType()),
                 request.restrictions()
         );
+        spot.replaceAvailabilityWindows(windows);
         return toResponse(parkingSpotRepository.save(spot));
     }
 
     @Transactional
     public ParkingSpotResponse update(UUID spotId, UUID ownerId, UpdateParkingSpotRequest request) {
+        User owner = findUser(ownerId);
+        ownerId = owner.getId();
+        if (request.hasNoFields()) {
+            throw new InvalidRequestException("EMPTY_UPDATE", "Send at least one field to update.");
+        }
+        List<AvailabilityWindow> windows = request.availabilityWindows() == null
+                ? null
+                : toValidatedWindows(request.availabilityWindows());
+
         ParkingSpot spot = getOwnedSpotForUpdate(spotId, ownerId);
         if (!spot.isActive()) {
-            throw new BusinessRuleException("A deactivated parking spot cannot be updated.");
+            throw new ConflictException("SPOT_INACTIVE", "A deactivated parking spot cannot be updated.");
         }
 
-        spot.setTitle(request.title());
-        spot.setDescription(request.description());
-        spot.setAddress(request.address());
-        spot.setPhotoUrl(request.photoUrl());
-        spot.setPricePerHour(request.pricePerHour());
-        spot.setParkingType(toParkingType(request.parkingType()));
-        spot.setRestrictions(request.restrictions());
+        if (request.title() != null) spot.setTitle(request.title());
+        if (request.description() != null) spot.setDescription(request.description());
+        if (request.address() != null) spot.setAddress(request.address());
+        if (request.photoUrl() != null) spot.setPhotoUrl(request.photoUrl());
+        if (request.pricePerHour() != null) spot.setPricePerHour(request.pricePerHour());
+        if (request.parkingType() != null) spot.setParkingType(toParkingType(request.parkingType()));
+        if (request.restrictions() != null) spot.setRestrictions(request.restrictions());
+        if (windows != null) spot.replaceAvailabilityWindows(windows); // replaces the complete schedule
 
         return toResponse(parkingSpotRepository.save(spot));
     }
+
 
     @Transactional
     public ParkingSpotResponse setAvailability(UUID spotId, UUID ownerId, SetAvailabilityRequest request) {
+        User owner = findUser(ownerId);
+        ownerId = owner.getId();
+        List<AvailabilityWindow> windows = toValidatedWindows(request.periods());
+
         ParkingSpot spot = getOwnedSpotForUpdate(spotId, ownerId);
         if (!spot.isActive()) {
-            throw new BusinessRuleException("A deactivated parking spot cannot have its availability changed.");
+            throw new ConflictException("SPOT_INACTIVE", "A deactivated parking spot cannot have its availability changed.");
         }
 
-        List<AvailabilityPeriodRequest> periods = new ArrayList<>(request.periods());
-        periods.sort(Comparator.comparing(AvailabilityPeriodRequest::startTime));
-
-        for (int i = 0; i < periods.size(); i++) {
-            AvailabilityPeriodRequest current = periods.get(i);
-            if (!current.startTime().isBefore(current.endTime())) {
-                throw new BusinessRuleException("Each availability period must end after it starts.");
-            }
-            if (i > 0 && periods.get(i - 1).endTime().isAfter(current.startTime())) {
-                throw new BusinessRuleException("Availability periods cannot overlap.");
-            }
-        }
-
-        // PUT replaces the complete availability schedule; orphanRemoval deletes the old rows.
-        List<AvailabilityWindow> windows = periods.stream()
-                .map(p -> new AvailabilityWindow(p.startTime(), p.endTime()))
-                .toList();
         spot.replaceAvailabilityWindows(windows);
-
         return toResponse(parkingSpotRepository.save(spot));
     }
+
 
     @Transactional
-    public ParkingSpotResponse deactivate(UUID spotId, UUID ownerId) {
+    public void deactivate(UUID spotId, UUID ownerId) {
+        User owner = findUser(ownerId);
+        ownerId = owner.getId();
         ParkingSpot spot = getOwnedSpotForUpdate(spotId, ownerId);
         spot.setActive(false);
-        return toResponse(parkingSpotRepository.save(spot));
+        parkingSpotRepository.save(spot);
     }
+
 
     @Transactional(readOnly = true)
     public ParkingSpotResponse getDetails(UUID spotId) {
         ParkingSpot spot = parkingSpotRepository.findByIdAndActiveTrue(spotId)
-                .orElseThrow(() -> new ResourceNotFoundException("Active parking spot not found."));
+                .orElseThrow(() -> new NotFoundException("SPOT_NOT_FOUND", "Active parking spot not found."));
         return toResponse(spot);
     }
 
+
     @Transactional(readOnly = true)
     public List<ParkingSpotResponse> getOwnerListings(UUID ownerId) {
-        return parkingSpotRepository.findAllByOwnerIdOrderByCreatedAtDesc(ownerId)
+        User owner = findUser(ownerId);
+        ownerId = owner.getId();
+        return parkingSpotRepository.findAllByOwnerIdOrderByCreatedAtDesc(owner.getId())
                 .stream()
                 .map(this::toResponse)
                 .toList();
@@ -234,10 +250,13 @@ public class ParkingSpotService {
     }
 
     private ParkingSpot getOwnedSpotForUpdate(UUID spotId, UUID ownerId) {
+        ParkingSpot existing = parkingSpotRepository.findById(spotId)
+                .orElseThrow(() -> new NotFoundException("SPOT_NOT_FOUND", "Parking spot not found."));
+        if (!existing.getOwnerId().equals(ownerId)) {
+            throw new ForbiddenException("NOT_SPOT_OWNER", "You do not own this parking spot.");
+        }
         return parkingSpotRepository.findOwnedForUpdate(spotId, ownerId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Parking spot not found for this owner."
-                ));
+                .orElseThrow(() -> new NotFoundException("SPOT_NOT_FOUND", "Parking spot not found."));
     }
 
     private ParkingType toParkingType(String value) {
@@ -248,9 +267,7 @@ public class ParkingSpotService {
         List<AvailabilityPeriodResponse> availability = spot.getAvailabilityWindows()
                 .stream()
                 .sorted(Comparator.comparing(AvailabilityWindow::getStartTime))
-                .map(period -> new AvailabilityPeriodResponse(
-                        period.getId(), period.getStartTime(), period.getEndTime()
-                ))
+                .map(w -> new AvailabilityPeriodResponse(w.getStartTime(), w.getEndTime()))
                 .toList();
 
         return new ParkingSpotResponse(
@@ -267,5 +284,33 @@ public class ParkingSpotService {
                 spot.getCreatedAt(),
                 availability
         );
+    }
+
+    private List<AvailabilityWindow> toValidatedWindows(List<AvailabilityPeriodRequest> requested) {
+        List<AvailabilityPeriodRequest> periods = new ArrayList<>(requested);
+        periods.sort(Comparator.comparing(AvailabilityPeriodRequest::startTime));
+
+        for (int i = 0; i < periods.size(); i++) {
+            AvailabilityPeriodRequest current = periods.get(i);
+            if (!current.startTime().isBefore(current.endTime())) {
+                throw new InvalidRequestException("INVALID_AVAILABILITY",
+                        "Each availability window must end after it starts.");
+            }
+            if (i > 0 && periods.get(i - 1).endTime().isAfter(current.startTime())) {
+                throw new InvalidRequestException("INVALID_AVAILABILITY",
+                        "Availability windows cannot overlap.");
+            }
+        }
+        return periods.stream()
+                .map(p -> new AvailabilityWindow(p.startTime(), p.endTime()))
+                .toList();
+    }
+
+    private User findUser(UUID callerId) {
+        return userRepository.findById(callerId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "User not found"
+                ));
     }
 }
