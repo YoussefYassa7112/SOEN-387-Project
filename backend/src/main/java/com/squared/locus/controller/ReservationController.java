@@ -34,4 +34,13 @@ public class ReservationController {
                 .location(URI.create("/api/v1/reservations/" + reservation.reservationId()))
                 .body(reservation);
     }
+
+    // LOCUS-29: the owner check is in the service, not here.
+    @GetMapping("/reservations/{reservationId}")
+    public ReservationResponse getById(
+            @PathVariable UUID reservationId,
+            @AuthenticationPrincipal Jwt jwt) {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        return reservationService.getById(reservationId, userId);
+    }
 }

@@ -56,4 +56,16 @@ public class ReservationService {
 
         return ReservationResponse.from(reservationRepository.save(reservation));
     }
+
+    // LOCUS-29: only the driver who made the reservation can see it.
+    @Transactional(readOnly = true)
+    public ReservationResponse getById(UUID reservationId, UUID userId) {
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new NotFoundException("RESERVATION_NOT_FOUND", "Reservation not found."));
+
+        if (!reservation.getUserId().equals(userId)) {
+            throw new ForbiddenException("NOT_RESERVATION_OWNER", "You can only view your own reservations.");
+        }
+        return ReservationResponse.from(reservation);
+    }
 }
