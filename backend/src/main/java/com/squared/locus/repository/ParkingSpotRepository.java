@@ -1,18 +1,28 @@
 package com.squared.locus.repository;
 
-import com.squared.locus.model.ParkingSpot;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-
-import jakarta.persistence.LockModeType;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import com.squared.locus.model.ParkingSpot;
+
+import jakarta.persistence.LockModeType;
+
 public interface ParkingSpotRepository extends JpaRepository<ParkingSpot, UUID> {
+    // Added for pessimistic locking to prevent race conditions when updating a parking spot.
+    // While request A locks the parking spot, request B will wait until A is done and the lock is released.    
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from ParkingSpot p where p.id = :id")
+    // Loads a parking spot while placing the database write lock on that row
+    // Used to create a reservation
+    Optional<ParkingSpot> findForUpdate(@Param("id") UUID id);
+
     List<ParkingSpot> findAllByOwnerIdOrderByCreatedAtDesc(UUID ownerId);
 
     Optional<ParkingSpot> findByIdAndActiveTrue(UUID id);

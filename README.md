@@ -96,6 +96,17 @@ Once it is running:
 - Swagger UI: <http://localhost:8080/swagger-ui.html>
 - Health check: <http://localhost:8080/actuator/health>
 
+## Running the reservation concurrency test
+
+Create a temporary local PostgreSQL database named `locus_concurrency_test`, then run:
+
+```bash
+cd backend
+bash mvnw test -Dtest=ReservationConcurrencyTest
+```
+
+The test uses local PostgreSQL by default and does not use the Neon database. Override the database settings with `-Dtest.database.url`, `-Dtest.database.username`, and `-Dtest.database.password` if needed.
+
 ## Running the frontend
 
 ```bash
