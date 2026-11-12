@@ -1,93 +1,141 @@
-
 import { useState } from 'react'
-import { GoogleLogin } from '@react-oauth/google'
+import Header from './components/Header.jsx'
+import DemoDetails from './components/DemoDetails.jsx'
+import SearchPage from './pages/SearchPage.jsx'
+import SpotPage from './pages/SpotPage.jsx'
+import MySpotsPage from './pages/MySpotsPage.jsx'
+import ReservationsPage from './pages/ReservationsPage.jsx'
+import { callApi, isSuccess } from './api.js'
+
+// Reads a saved value from the browser, or returns the default.
+// If the saved value is not valid JSON (for example a token saved by an older
+// version of the page), we ignore it instead of crashing the whole page.
+function load(key, defaultValue) {
+    const saved = localStorage.getItem(key)
+    if (saved === null) {
+        return defaultValue
+    }
+    try {
+        return JSON.parse(saved)
+    } catch {
+        return defaultValue
+    }
+}
+
+function save(key, value) {
+    localStorage.setItem(key, JSON.stringify(value))
+}
 
 function App() {
-    const [status, setStatus] = useState('')
-    const [accessToken, setAccessToken] = useState(null)
+    // Which page is shown: 'search', 'spot', 'mySpots' or 'reservations'.
+    const [page, setPage] = useState('search')
+    const [previousPage, setPreviousPage] = useState('search')
+    const [spotId, setSpotId] = useState('')
 
+    // Saved in the browser so a refresh keeps them.
+    const [token, setToken] = useState(load('locusToken', ''))
+    const [demoMode, setDemoMode] = useState(load('locusDemoMode', false))
+    const [reservationIds, setReservationIds] = useState(load('locusReservations', []))
+
+    // Demo mode: the last sign-in call, and a box to paste a token for a second user.
+    const [signInResult, setSignInResult] = useState(null)
+    const [pastedToken, setPastedToken] = useState('')
+
+    const changeToken = (newToken) => {
+        save('locusToken', newToken)
+        setToken(newToken)
+    }
+
+    const changeDemoMode = (on) => {
+        save('locusDemoMode', on)
+        setDemoMode(on)
+    }
+
+    const saveReservation = (id) => {
+        if (!reservationIds.includes(id)) {
+            const newIds = [id].concat(reservationIds)
+            save('locusReservations', newIds)
+            setReservationIds(newIds)
+        }
+    }
+
+    const goTo = (newPage) => {
+        setPage(newPage)
+        window.scrollTo(0, 0)
+    }
+
+    const openSpot = (id) => {
+        setSpotId(id)
+        setPreviousPage(page)
+        goTo('spot')
+    }
+
+    // POST /auth/google: trade the Google ID token for our own Locus JWT.
     const handleGoogleSuccess = async (credentialResponse) => {
-        setStatus('Signing in with Locus...')
-
-        try {
-            const response = await fetch(
-                'http://localhost:8080/api/v1/auth/google',
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        idToken: credentialResponse.credential,
-                    }),
-                }
-            )
-
-            if (!response.ok) {
-                throw new Error(`Backend returned ${response.status}`)
-            }
-
-            const data = await response.json()
-
-            if (!data.accessToken || data.tokenType !== 'Bearer') {
-                throw new Error('Invalid authentication response')
-            }
-
-            setAccessToken(data.accessToken)
-            setStatus('Successfully authenticated with Locus!')
-
-        } catch (error) {
-            console.error('Authentication error:', error.message)
-            setAccessToken(null)
-            setStatus(`Authentication failed: ${error.message}`)
+        const answer = await callApi('POST', '/auth/google', null, { idToken: credentialResponse.credential })
+        setSignInResult(answer)
+        if (isSuccess(answer)) {
+            changeToken(answer.body.accessToken)
+        } else {
+            alert('Sign-in failed (status ' + answer.status + ')')
         }
-    }
-
-    const handleCopyToken = async () => {
-        try {
-            await navigator.clipboard.writeText(accessToken)
-            setStatus('JWT token copied to clipboard!')
-        } catch (error) {
-            console.error('Clipboard error:', error)
-            setStatus('Could not copy token. Check browser permissions.')
-        }
-    }
-
-    const handleLogout = () => {
-        setAccessToken(null)
-        setStatus('Logged out of Locus')
     }
 
     return (
-        <main style={{ padding: '40px' }}>
-            <h1>Locus</h1>
-            <p>Parking Rental Platform</p>
+        <div>
+            <Header
+                page={page}
+                goTo={goTo}
+                token={token}
+                onGoogleSuccess={handleGoogleSuccess}
+                onLogout={() => changeToken('')}
+                demoMode={demoMode}
+                setDemoMode={changeDemoMode}
+            />
 
-            {!accessToken ? (
-                <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={() => setStatus('Google Sign-In failed')}
-                />
-            ) : (
-                <div>
-                    <h2>Authentication successful!</h2>
-                    <p>You received a Locus JWT bearer token.</p>
-
-                    <button onClick={handleCopyToken}>
-                        Copy JWT Token
-                    </button>
-
-                    <button
-                        onClick={handleLogout}
-                        style={{ marginLeft: '10px' }}
-                    >
-                        Log out
-                    </button>
+            {demoMode && (
+                <div className="demo-bar">
+                    <div className="container">
+                        <strong>Demo mode:</strong> buttons marked in purple show the raw requests and responses.
+                        <div className="row">
+                            <input placeholder="Paste a Locus JWT to act as another user" value={pastedToken} onChange={(e) => setPastedToken(e.target.value)} />
+                            <button className="button small demo" disabled={pastedToken.trim() === ''} onClick={() => { changeToken(pastedToken.trim()); setPastedToken('') }}>
+                                Use this token
+                            </button>
+                            {token && (
+                                <button className="button small demo" onClick={() => navigator.clipboard.writeText(token)}>
+                                    Copy my token
+                                </button>
+                            )}
+                        </div>
+                        <DemoDetails demoMode={demoMode} result={signInResult} />
+                    </div>
                 </div>
             )}
 
-            <p role="status">{status}</p>
-        </main>
+            <main className="container">
+                {page === 'search' && <SearchPage openSpot={openSpot} demoMode={demoMode} />}
+                {page === 'spot' && (
+                    <SpotPage
+                        spotId={spotId}
+                        token={token}
+                        goBack={() => goTo(previousPage)}
+                        saveReservation={saveReservation}
+                        demoMode={demoMode}
+                    />
+                )}
+                {page === 'mySpots' && <MySpotsPage token={token} openSpot={openSpot} demoMode={demoMode} />}
+                {page === 'reservations' && (
+                    <ReservationsPage
+                        token={token}
+                        reservationIds={reservationIds}
+                        saveReservation={saveReservation}
+                        openSpot={openSpot}
+                        demoMode={demoMode}
+                    />
+                )}
+            </main>
+        </div>
     )
 }
 
