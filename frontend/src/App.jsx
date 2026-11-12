@@ -1,92 +1,39 @@
-
 import { useState } from 'react'
-import { GoogleLogin } from '@react-oauth/google'
+import SignIn from './components/SignIn.jsx'
+import SearchSpots from './components/SearchSpots.jsx'
+import SpotDetails from './components/SpotDetails.jsx'
+import OwnerSpots from './components/OwnerSpots.jsx'
+import Reservations from './components/Reservations.jsx'
 
+// Test page for the Locus API.
+// Each section calls the endpoints we have so far and shows the status code
+// and the raw JSON of the answer, including errors.
 function App() {
-    const [status, setStatus] = useState('')
-    const [accessToken, setAccessToken] = useState(null)
+    // The JWT is kept in localStorage so a page refresh does not log us out.
+    const [token, setToken] = useState(localStorage.getItem('locusToken') || '')
+    const [spotId, setSpotId] = useState('')
 
-    const handleGoogleSuccess = async (credentialResponse) => {
-        setStatus('Signing in with Locus...')
-
-        try {
-            const response = await fetch(
-                'http://localhost:8080/api/v1/auth/google',
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        idToken: credentialResponse.credential,
-                    }),
-                }
-            )
-
-            if (!response.ok) {
-                throw new Error(`Backend returned ${response.status}`)
-            }
-
-            const data = await response.json()
-
-            if (!data.accessToken || data.tokenType !== 'Bearer') {
-                throw new Error('Invalid authentication response')
-            }
-
-            setAccessToken(data.accessToken)
-            setStatus('Successfully authenticated with Locus!')
-
-        } catch (error) {
-            console.error('Authentication error:', error.message)
-            setAccessToken(null)
-            setStatus(`Authentication failed: ${error.message}`)
-        }
-    }
-
-    const handleCopyToken = async () => {
-        try {
-            await navigator.clipboard.writeText(accessToken)
-            setStatus('JWT token copied to clipboard!')
-        } catch (error) {
-            console.error('Clipboard error:', error)
-            setStatus('Could not copy token. Check browser permissions.')
-        }
-    }
-
-    const handleLogout = () => {
-        setAccessToken(null)
-        setStatus('Logged out of Locus')
+    const saveToken = (newToken) => {
+        localStorage.setItem('locusToken', newToken)
+        setToken(newToken)
     }
 
     return (
-        <main style={{ padding: '40px' }}>
-            <h1>Locus</h1>
-            <p>Parking Rental Platform</p>
+        <main>
+            <h1>Locus API test page</h1>
 
-            {!accessToken ? (
-                <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={() => setStatus('Google Sign-In failed')}
-                />
-            ) : (
-                <div>
-                    <h2>Authentication successful!</h2>
-                    <p>You received a Locus JWT bearer token.</p>
+            <div className="current">
+                <label>
+                    Spot ID used by sections 3, 4 and 5
+                    <input value={spotId} onChange={(e) => setSpotId(e.target.value)} placeholder="paste a spotId, or create a spot" />
+                </label>
+            </div>
 
-                    <button onClick={handleCopyToken}>
-                        Copy JWT Token
-                    </button>
-
-                    <button
-                        onClick={handleLogout}
-                        style={{ marginLeft: '10px' }}
-                    >
-                        Log out
-                    </button>
-                </div>
-            )}
-
-            <p role="status">{status}</p>
+            <SignIn token={token} setToken={saveToken} />
+            <SearchSpots />
+            <SpotDetails spotId={spotId} />
+            <OwnerSpots token={token} spotId={spotId} setSpotId={setSpotId} />
+            <Reservations token={token} spotId={spotId} />
         </main>
     )
 }

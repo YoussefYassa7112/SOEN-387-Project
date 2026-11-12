@@ -8,3 +8,51 @@ main {
   margin: 0 auto;
   padding: 16px;
 }
+
+section,
+.current {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+label {
+  display: block;
+  margin: 6px 0;
+}
+
+input,
+select,
+textarea {
+  margin-left: 8px;
+}
+
+textarea {
+  width: 100%;
+  margin: 6px 0;
+  font-family: monospace;
+}
+
+button {
+  margin: 6px 6px 6px 0;
+}
+
+.response pre {
+  background: #f4f4f4;
+  padding: 8px;
+  overflow-x: auto;
+  max-height: 400px;
+}
+
+.ok {
+  color: green;
+}
+
+.error {
+  color: #c00;
+}
+
+.current input {
+  width: 360px;
+}
