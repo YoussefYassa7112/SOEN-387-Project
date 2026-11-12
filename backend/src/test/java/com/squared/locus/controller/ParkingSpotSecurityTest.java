@@ -136,12 +136,18 @@ class ParkingSpotSecurityTest {
                 }
                 """;
 
+        ParkingSpotResponse created = mock(ParkingSpotResponse.class);
+        when(created.spotId()).thenReturn(spotId);
+        when(parkingSpotService.create(eq(userA), any(CreateParkingSpotRequest.class)))
+                .thenReturn(created);
+
         mockMvc.perform(post("/api/v1/parking-spots")
                 .with(jwt().jwt(jwt ->
                         jwt.subject(userA.toString())))
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(spoofedRequest));
+                .content(spoofedRequest))
+                .andExpect(status().isCreated());
 
         // The authenticated caller is userA.
         // The service must receive userA as the owner.
