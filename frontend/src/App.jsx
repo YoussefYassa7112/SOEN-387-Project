@@ -8,9 +8,18 @@ import ReservationsPage from './pages/ReservationsPage.jsx'
 import { callApi, isSuccess } from './api.js'
 
 // Reads a saved value from the browser, or returns the default.
+// If the saved value is not valid JSON (for example a token saved by an older
+// version of the page), we ignore it instead of crashing the whole page.
 function load(key, defaultValue) {
     const saved = localStorage.getItem(key)
-    return saved === null ? defaultValue : JSON.parse(saved)
+    if (saved === null) {
+        return defaultValue
+    }
+    try {
+        return JSON.parse(saved)
+    } catch {
+        return defaultValue
+    }
 }
 
 function save(key, value) {
