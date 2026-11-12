@@ -2,7 +2,6 @@ package com.squared.locus.service;
 import com.squared.locus.repository.UserRepository;
 import com.squared.locus.model.User;
 import com.squared.locus.domain.ConflictException;
-import com.squared.locus.domain.ForbiddenException;
 import com.squared.locus.domain.InvalidRequestException;
 import com.squared.locus.domain.NotFoundException;
 import com.squared.locus.dto.*;
