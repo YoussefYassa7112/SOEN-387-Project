@@ -96,6 +96,32 @@ Once it is running:
 - Swagger UI: <http://localhost:8080/swagger-ui.html>
 - Health check: <http://localhost:8080/actuator/health>
 
+## Running the security and ownership tests
+
+These tests cover listing ownership (LOCUS-12), reservation access (LOCUS-13), and JWT validation (LOCUS-14), together with API conformance. They do not require a running backend, a database, or real credentials.
+
+From the project root:
+
+```bash
+# macOS / Linux
+cd backend
+bash mvnw -Dtest=ParkingSpotServiceTest,ReservationServiceTest,JwtSecurityTest,ParkingSpotSecurityTest,ApiConformanceTest test
+```
+
+```powershell
+# Windows (PowerShell)
+cd backend
+.\mvnw.cmd "-Dtest=ParkingSpotServiceTest,ReservationServiceTest,JwtSecurityTest,ParkingSpotSecurityTest,ApiConformanceTest" test
+```
+
+To run just the JWT tests from the `backend` directory:
+
+```bash
+bash mvnw -Dtest=JwtSecurityTest test
+```
+
+Look for `BUILD SUCCESS` when the tests finish. Detailed results are saved in `backend/target/surefire-reports/`.
+
 ## Running the reservation concurrency test
 
 Create a temporary local PostgreSQL database named `locus_concurrency_test`, then run:
