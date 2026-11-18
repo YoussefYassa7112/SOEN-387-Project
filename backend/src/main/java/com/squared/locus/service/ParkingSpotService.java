@@ -4,6 +4,7 @@ import com.squared.locus.model.User;
 import com.squared.locus.domain.ConflictException;
 import com.squared.locus.domain.InvalidRequestException;
 import com.squared.locus.domain.NotFoundException;
+import com.squared.locus.domain.PaymentHold;
 import com.squared.locus.dto.*;
 import com.squared.locus.model.AvailabilityWindow;
 import com.squared.locus.model.ParkingSpot;
@@ -136,7 +137,7 @@ public class ParkingSpotService {
 
         List<UUID> reservedSpotIds = new ArrayList<>();
         if (startTime != null) {
-            reservedSpotIds = parkingSpotRepository.findReservedSpotIds(startTime, endTime);
+            reservedSpotIds = parkingSpotRepository.findReservedSpotIds(startTime, endTime, PaymentHold.cutoff(OffsetDateTime.now()));
         }
 
         List<ParkingSpot> matches = new ArrayList<>();
@@ -171,7 +172,7 @@ public class ParkingSpotService {
             reason = "inactive";
         } else if (!spot.isOpenDuring(startTime, endTime)) {
             reason = "outsideOwnerAvailability";
-        } else if (parkingSpotRepository.findReservedSpotIds(startTime, endTime).contains(spotId)) {
+        } else if (parkingSpotRepository.findReservedSpotIds(startTime, endTime, PaymentHold.cutoff(OffsetDateTime.now())).contains(spotId)) {
             reason = "alreadyReserved";
         }
 

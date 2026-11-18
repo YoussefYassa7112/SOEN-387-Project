@@ -14,7 +14,8 @@ import static org.mockito.Mockito.*;
 class ReservationServiceTest {
     private final ReservationRepository reservations = mock(ReservationRepository.class);
     private final ReservationService service = new ReservationService(reservations,
-            mock(ParkingSpotRepository.class), mock(ReservationIdempotencyRepository.class), new ObjectMapper());
+            mock(ParkingSpotRepository.class), mock(ReservationIdempotencyRepository.class), new ObjectMapper(),
+            mock(PaymentOutboxRepository.class));
     private final UUID driver = UUID.randomUUID();
     private final UUID id = UUID.randomUUID();
 

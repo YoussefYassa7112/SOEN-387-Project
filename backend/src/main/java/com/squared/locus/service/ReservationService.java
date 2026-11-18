@@ -13,12 +13,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.squared.locus.domain.ConflictException;
 import com.squared.locus.domain.InvalidRequestException;
 import com.squared.locus.domain.NotFoundException;
+import com.squared.locus.domain.PaymentHold;
 import com.squared.locus.domain.ReservationPrice;
 import com.squared.locus.dto.CreateReservationRequest;
 import com.squared.locus.dto.ReservationResponse;
 import com.squared.locus.model.ParkingSpot;
 import com.squared.locus.model.Reservation;
+import com.squared.locus.model.PaymentOutboxEvent;
 import com.squared.locus.repository.ParkingSpotRepository;
+import com.squared.locus.repository.PaymentOutboxRepository;
 import com.squared.locus.repository.ReservationIdempotencyRepository;
 import com.squared.locus.repository.ReservationRepository;
 
@@ -32,15 +35,22 @@ public class ReservationService {
     private final ReservationIdempotencyRepository idempotencyRepository;
     // Serializes and deserializing stored reservation responses
     private final ObjectMapper objectMapper;
+    // LOCUS-38: "this reservation needs to be paid", picked up later by PaymentWorker
+    private final PaymentOutboxRepository paymentOutboxRepository;
+
+    // Stripe's always-succeeds test card, used when the client does not choose one.
+    static final String DEFAULT_TEST_CARD = "pm_card_visa";
 
     public ReservationService(ReservationRepository reservationRepository,
                               ParkingSpotRepository parkingSpotRepository,
                               ReservationIdempotencyRepository idempotencyRepository,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              PaymentOutboxRepository paymentOutboxRepository) {
         this.reservationRepository = reservationRepository;
         this.parkingSpotRepository = parkingSpotRepository;
         this.idempotencyRepository = idempotencyRepository;
         this.objectMapper = objectMapper;
+        this.paymentOutboxRepository = paymentOutboxRepository;
     }
 
     // LOCUS-26: reserve a spot for a start and end time.
@@ -58,10 +68,12 @@ public class ReservationService {
         }
         OffsetDateTime startTime = request.startTime();
         OffsetDateTime endTime = request.endTime();
+        String paymentMethod = request.paymentMethod() == null ? DEFAULT_TEST_CARD : request.paymentMethod();
 
         // 2. Create the request fingerprint to be able to identify what the idempotency key was originally used for
-        // Include the HTTP operation, parking spot and times
-        String fingerprint = "POST|" + spotId + "|" + startTime.toInstant() + "|" + endTime.toInstant();
+        // Include the HTTP operation, parking spot, times and the card
+        String fingerprint = "POST|" + spotId + "|" + startTime.toInstant() + "|" + endTime.toInstant()
+                + "|" + paymentMethod;
         // 3. Claim the idempotency key
         var claim = idempotencyRepository.claim(userId, idempotencyKey, fingerprint);
         // 4. If second request has a different fingerprint, reject it
@@ -99,7 +111,7 @@ public class ReservationService {
         if (!spot.isOpenDuring(startTime, endTime)) {
             throw new ConflictException("PARKING_SPOT_UNAVAILABLE", "The owner has not made the spot available for this whole interval.");
         }
-        if (reservationRepository.hasOverlap(spotId, startTime, endTime)) {
+        if (reservationRepository.hasOverlap(spotId, startTime, endTime, PaymentHold.cutoff(OffsetDateTime.now()))) {
             throw new ConflictException("PARKING_SPOT_UNAVAILABLE",
                     "This parking spot is already reserved during the requested interval.");
         }
@@ -107,8 +119,12 @@ public class ReservationService {
         BigDecimal totalPrice = ReservationPrice.calculate(spot.getPricePerHour(), startTime, endTime);
         Reservation reservation = new Reservation(spotId, userId, startTime, endTime, totalPrice);
 
-
         ReservationResponse response = ReservationResponse.from(reservationRepository.saveAndFlush(reservation));
+
+        // LOCUS-38: in the same transaction, so there is never a reservation without its payment
+        // request (or a payment request without its reservation). Stripe is NOT called here.
+        paymentOutboxRepository.save(new PaymentOutboxEvent(reservation.getId(), paymentMethod));
+
         try {
             idempotencyRepository.complete(userId, idempotencyKey, objectMapper.writeValueAsString(response));
         } catch (JsonProcessingException e) {

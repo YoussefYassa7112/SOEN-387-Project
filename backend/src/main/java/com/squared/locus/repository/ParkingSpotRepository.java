@@ -33,11 +33,14 @@ public interface ParkingSpotRepository extends JpaRepository<ParkingSpot, UUID> 
     List<ParkingSpot> findAllActiveWithWindows();
 
     // Intervals are half-open, so a booking ending at 8 PM does not clash with one starting at 8 PM.
+    // Unpaid reservations only count while their hold has not expired (see PaymentHold).
     @Query(value = "select distinct r.spot_id from reservations r "
-            + "where r.status in ('PENDING_PAYMENT', 'CONFIRMED') "
+            + "where (r.status = 'CONFIRMED' "
+            + "or (r.status = 'PENDING_PAYMENT' and r.created_at > :holdCutoff)) "
             + "and r.start_time < :endTime and r.end_time > :startTime", nativeQuery = true)
     List<UUID> findReservedSpotIds(@Param("startTime") OffsetDateTime startTime,
-                                   @Param("endTime") OffsetDateTime endTime);
+                                   @Param("endTime") OffsetDateTime endTime,
+                                   @Param("holdCutoff") OffsetDateTime holdCutoff);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from ParkingSpot p where p.id = :id and p.ownerId = :ownerId")

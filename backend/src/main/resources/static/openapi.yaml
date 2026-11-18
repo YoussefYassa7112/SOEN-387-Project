@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Locus Parking Rental API
-  version: 1.0.0
+  version: 1.1.0
   description: |-
     Contract-first REST API for Locus, a peer-to-peer parking rental service.
     Owners list parking spaces; drivers search and reserve a specific space for
@@ -656,6 +656,14 @@ components:
         endTime:
           type: string
           format: date-time
+        paymentMethod:
+          type: string
+          pattern: '^pm_[A-Za-z0-9_]{1,96}$'
+          description: |-
+            Added in 1.1.0 (backward compatible: optional, old clients are unaffected).
+            Stripe payment method to charge. In test mode use pm_card_visa (succeeds)
+            or pm_card_chargeDeclined (declined). Defaults to pm_card_visa.
+          examples: [pm_card_visa]
       description: |-
         Interval must be in the future, with endTime > startTime, and contained
         within the owner's availability windows. The authenticated user is the
