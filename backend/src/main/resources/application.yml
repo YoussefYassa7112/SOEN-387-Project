@@ -42,3 +42,10 @@ locus:
     secret: ${JWT_SECRET}
     issuer: locus-api
     expiration-seconds: 3600
+  stripe:
+    # Test-mode secret key (sk_test_...). Left empty, the payment worker stays off.
+    secret-key: ${STRIPE_SECRET_KEY:}
+  payments:
+    # How often the worker looks for payments to send, and how many tries before giving up.
+    poll-interval-ms: 5000
+    max-attempts: 5
