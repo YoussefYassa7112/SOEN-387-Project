@@ -129,7 +129,6 @@ function App() {
                     <ReservationsPage
                         token={token}
                         reservationIds={reservationIds}
-                        saveReservation={saveReservation}
                         openSpot={openSpot}
                         demoMode={demoMode}
                     />
