@@ -163,7 +163,7 @@ public class ParkingSpotService {
                                          String sort, Double destinationLatitude, Double destinationLongitude) {
         checkPaging(limit, offset);
         ParkingType wantedType = validateSearchFilters(
-                new ParkingSearchFilters(location, startTime, endTime, maxPricePerHour, parkingType));
+                new ParkingSearchFilters(location, startTime, endTime, maxPricePerHour, parkingType, null));
         boolean closest = "closest".equals(sort);
         if (closest) {
             if (destinationLatitude == null || !(Math.abs(destinationLatitude) <= 90)
@@ -227,6 +227,7 @@ public class ParkingSpotService {
 
     ParkingType validateSearchFilters(ParkingSearchFilters filters) {
         checkLocation(filters.location());
+        checkLocation(filters.destination());
         checkOptionalInterval(filters.startTime(), filters.endTime());
         checkMaxPrice(filters.maxPricePerHour());
         return parseParkingTypeFilter(filters.parkingType());

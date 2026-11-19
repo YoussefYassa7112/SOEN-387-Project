@@ -31,6 +31,7 @@ public class GeminiSearchService {
             "type", "object",
             "properties", Map.of(
                     "location", Map.of("type", List.of("string", "null")),
+                    "destination", Map.of("type", List.of("string", "null")),
                     "startTime", Map.of("type", List.of("string", "null")),
                     "endTime", Map.of("type", List.of("string", "null")),
                     "maxPricePerHour", Map.of("type", List.of("number", "null")),
@@ -74,14 +75,22 @@ public class GeminiSearchService {
         var now = ZonedDateTime.now(ZoneId.of("America/Toronto"));
         String instructions = """
                 Extract parking filters from the driver's message. The current Toronto time is %s.
-                Return JSON with location, startTime, endTime, maxPricePerHour, and parkingType.
-                Use a short address fragment for location and a number for the hourly price cap.
-                For times, use ISO 8601 with the Toronto offset for the requested date.
+                Use location for a street, city, or neighbourhood that the driver wants to match against listing addresses.
+                Use destination instead for a named venue, landmark, building, or a specific address the driver wants to park near.
+                For example, "go to the Bell Center" means destination "Bell Centre, Montréal" and location null.
+                Do not turn a venue name into a street name, invent a street address, or return both fields.
+                Use a number for the hourly price cap.
+                Use ISO 8601 timestamps with the Toronto offset for the requested date.
+                For an explicit time range with no date, use its next occurrence in Toronto.
                 Set both timestamps to null unless the user supplies enough information for a full interval.
                 Allowed parking types are driveway, privateLot, garage, and other.
                 Use null for each unspecified or unsupported filter. Do not invent values.
                 """.formatted(now);
         ParkingSearchFilters filters = extract(instructions, query, FILTER_SCHEMA, ParkingSearchFilters.class);
+        if (filters.destination() != null && !filters.destination().isBlank()) {
+            filters = new ParkingSearchFilters(null, filters.startTime(), filters.endTime(), filters.maxPricePerHour(),
+                    filters.parkingType(), filters.destination().trim());
+        }
         parkingSpots.validateSearchFilters(filters);
         return filters;
     }

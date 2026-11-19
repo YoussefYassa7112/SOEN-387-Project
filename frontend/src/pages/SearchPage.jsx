@@ -19,6 +19,7 @@ function SearchPage({ openSpot, demoMode, token }) {
     const [lookingUpEvent, setLookingUpEvent] = useState(false)
     const [eventParking, setEventParking] = useState(null)
     const [rankingEvent, setRankingEvent] = useState(false)
+    const [destination, setDestination] = useState('')
     const [foundEvent, setFoundEvent] = useState(null)
     const [eventMessage, setEventMessage] = useState('')
     const [destinationLatitude, setDestinationLatitude] = useState('')
@@ -48,16 +49,18 @@ function SearchPage({ openSpot, demoMode, token }) {
         search(0, '')
     }, [])
 
+    const proximityDestination = foundEvent?.venue || destination
+
     const handleSubmit = (event) => {
         event.preventDefault()
-        if (sort === 'event' && foundEvent) {
-            rankEventParking(foundEvent.venue, location, toApiTime(startTime), toApiTime(endTime))
+        if (sort === 'event' && proximityDestination) {
+            rankEventParking(proximityDestination, location, toApiTime(startTime), toApiTime(endTime))
             return
         }
 
         // The displayed venue address is a destination, not a listing address filter.
         const params = new URLSearchParams()
-        if (location !== '' && location !== foundEvent?.address) params.append('location', location)
+        if (location !== '' && location !== (foundEvent?.address || destination)) params.append('location', location)
         if (startTime !== '') params.append('startTime', toApiTime(startTime))
         if (endTime !== '') params.append('endTime', toApiTime(endTime))
         if (maxPrice !== '') params.append('maxPricePerHour', maxPrice)
@@ -88,13 +91,18 @@ function SearchPage({ openSpot, demoMode, token }) {
             return
         }
         setFoundEvent(null)
-        if (sort === 'event') setSort('')
-        setLocation(filters.location ?? '')
+        setEventMessage('')
+        setDestination(filters.destination ?? '')
+        if (filters.destination) setSort('event')
+        else if (sort === 'event') setSort('')
+        setLocation(filters.destination || filters.location || '')
         setStartTime(filters.startTime ? toInputTime(filters.startTime) : '')
         setEndTime(filters.endTime ? toInputTime(filters.endTime) : '')
         setMaxPrice(filters.maxPricePerHour ?? '')
         setParkingType(filters.parkingType ?? '')
-        setAiMessage('Review the filters, then select Search.')
+        setAiMessage(filters.destination && !filters.startTime
+            ? 'Enter your parking start and end times, then select Search.'
+            : 'Review the filters, then select Search.')
     }
 
     const rankEventParking = async (venue, address, parkingStart, parkingEnd) => {
@@ -133,6 +141,7 @@ function SearchPage({ openSpot, demoMode, token }) {
             ? new Date(Date.parse(details.endTime) + EVENT_BUFFER_MS).toISOString()
             : ''
         const address = details.address || details.venue
+        setDestination('')
         setFoundEvent({ ...details, address })
         setLocation(address)
         setStartTime(toInputTime(parkingStart))
@@ -219,7 +228,7 @@ function SearchPage({ openSpot, demoMode, token }) {
                 </form>
                 <form className="card search-form" onSubmit={handleSubmit}>
                     <label className="wide">
-                        {sort === 'event' ? 'Venue address' : 'Where?'}
+                        {sort === 'event' ? 'Destination' : 'Where?'}
                         <input placeholder="Address or area" value={location} maxLength={sort === 'event' ? 300 : 200}
                             required={sort === 'event'} readOnly={sort === 'event'} onChange={(e) => setLocation(e.target.value)} />
                     </label>
@@ -250,7 +259,7 @@ function SearchPage({ openSpot, demoMode, token }) {
                         <select value={sort} onChange={(event) => setSort(event.target.value)}>
                             <option value="">Default</option>
                             <option value="cheapest">Cheapest</option>
-                            {foundEvent && <option value="event">Nearest to event</option>}
+                            {proximityDestination && <option value="event">{foundEvent ? 'Nearest to event' : 'Nearest to destination'}</option>}
                             <option value="closest">Closest to venue coordinates</option>
                         </select>
                     </label>

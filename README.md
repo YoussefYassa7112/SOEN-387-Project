@@ -158,8 +158,9 @@ Never commit real credentials. `.env` files are ignored by Git; only the `.env.e
   returns HTTP 503, the backend makes one attempt with `gemini-3.5-flash-lite`.
 - Sign in on the search page and try **Apply AI filters** with a query such as
   “Parking downtown tomorrow from 2 to 4 pm for $8 an hour or less.”
-  Review the fields and select **Search**. Location still matches text in the
-  listing address, so use a place name that appears in your demo listings.
+  Review the fields and select **Search**. A street or area matches listing
+  address text. A landmark such as Bell Centre becomes a destination for
+  proximity ranking.
 - **Cheapest** sorts by hourly price after filtering for the requested
   availability and before dividing the results into pages.
 
@@ -173,6 +174,8 @@ On a deployed backend set `GEMINI_API_KEY` as a secret and set
 Set `TAVILY_API_KEY` alongside `GEMINI_API_KEY` in the backend environment
 and restart the backend. Sign in, enter an event name and city, and select
 **Look up event**. Tavily finds sources and Gemini extracts the event details.
+The app checks the actual venue against the returned source before searching
+parking. For a sports game, this can be the away team's arena.
 The app sets the parking window to 15 minutes before and after the event and
 automatically searches available listings when both event times are known.
 If an end time is missing, enter the parking end time including the return

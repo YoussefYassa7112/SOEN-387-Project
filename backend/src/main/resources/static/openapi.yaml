@@ -197,6 +197,10 @@ paths:
                 properties:
                   location:
                     type: [string, 'null']
+                    description: Street or area text to match against listing addresses.
+                  destination:
+                    type: [string, 'null']
+                    description: Named venue, landmark, or specific address to use for proximity search.
                   startTime:
                     type: [string, 'null']
                     format: date-time

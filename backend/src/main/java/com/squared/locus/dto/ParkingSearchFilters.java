@@ -5,5 +5,5 @@ import java.time.OffsetDateTime;
 
 public record ParkingSearchFilters(
         String location, OffsetDateTime startTime, OffsetDateTime endTime,
-        BigDecimal maxPricePerHour, String parkingType) {
+        BigDecimal maxPricePerHour, String parkingType, String destination) {
 }
