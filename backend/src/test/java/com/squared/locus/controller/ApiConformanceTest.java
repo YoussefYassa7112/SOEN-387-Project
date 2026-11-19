@@ -114,6 +114,7 @@ class ApiConformanceTest {
                 "Driveway near Concordia",
                 null,
                 "1455 De Maisonneuve Blvd W, Montreal",
+                45.4972, -73.5790,
                 null,
                 new BigDecimal("10.00"),
                 "driveway",

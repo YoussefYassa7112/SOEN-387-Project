@@ -16,6 +16,8 @@ public record ParkingSpotResponse(
         String title,
         String description,
         String address,
+        Double latitude,
+        Double longitude,
         String photoUrl,
         BigDecimal pricePerHour,
         String parkingType,

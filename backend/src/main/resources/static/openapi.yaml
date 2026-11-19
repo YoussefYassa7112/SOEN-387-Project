@@ -609,6 +609,19 @@ components:
             createdAt:
               type: string
               format: date-time
+            latitude:
+              type: number
+              minimum: -90
+              maximum: 90
+              description: >
+                Where the spot is on the map, found by the server from the address
+                (OpenStreetMap Nominatim). Left out when the address could not be found,
+                so clients must still show the spot without a map. Clients cannot set it.
+            longitude:
+              type: number
+              minimum: -180
+              maximum: 180
+              description: See latitude.
     ParkingSpotPage:
       type: object
       additionalProperties: false
