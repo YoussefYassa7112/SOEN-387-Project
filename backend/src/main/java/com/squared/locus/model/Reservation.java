@@ -59,6 +59,21 @@ public class Reservation {
         this.currency = "CAD";
     }
 
+    // LOCUS-41: payment went through.
+    public void confirmPayment() {
+        if (status == Status.PENDING_PAYMENT) {
+            status = Status.CONFIRMED;
+        }
+    }
+
+    // LOCUS-42: payment finally failed. PAYMENT_FAILED no longer blocks the spot,
+    // so the time slot is free for other drivers again (compensation).
+    public void failPayment() {
+        if (status == Status.PENDING_PAYMENT) {
+            status = Status.PAYMENT_FAILED;
+        }
+    }
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) {
