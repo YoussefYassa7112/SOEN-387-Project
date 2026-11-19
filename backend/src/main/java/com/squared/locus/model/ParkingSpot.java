@@ -34,9 +34,6 @@ public class ParkingSpot {
     @Column(name = "address", nullable = false, length = 300)
     private String address;
 
-    private Double latitude;
-    private Double longitude;
-
     @Column(name = "photo_url", columnDefinition = "TEXT")
     private String photoUrl;
 
