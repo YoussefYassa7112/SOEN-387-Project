@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { CardElement, useElements, useStripe } from '@stripe/react-stripe-js'
 import { callApi, errorMessage, isSuccess, showPrice, showTime, toApiTime } from '../api.js'
 import DemoDetails from '../components/DemoDetails.jsx'
+import DirectionsButton from '../components/DirectionsButton.jsx'
+import SpotMap from '../components/SpotMap.jsx'
 import { STRIPE_ENABLED } from '../stripe.js'
 
 // Fallback when there is no Stripe publishable key: Stripe's ready-made test cards.
@@ -143,6 +145,10 @@ function SpotPage({ spotId, token, goBack, saveReservation, demoMode }) {
                     {spot.parkingType && <span className="badge">{spot.parkingType}</span>}
                     {spot.description && <p>{spot.description}</p>}
                     {spot.restrictions && <p><strong>Restrictions:</strong> {spot.restrictions}</p>}
+
+                    <h3>Location</h3>
+                    <SpotMap spots={[spot]} />
+                    <p><DirectionsButton address={spot.address} /></p>
 
                     <h3>Available</h3>
                     <ul>

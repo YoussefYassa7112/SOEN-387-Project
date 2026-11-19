@@ -6,6 +6,8 @@ import com.squared.locus.domain.InvalidRequestException;
 import com.squared.locus.domain.NotFoundException;
 import com.squared.locus.domain.PaymentHold;
 import com.squared.locus.dto.*;
+import com.squared.locus.integration.Coordinates;
+import com.squared.locus.integration.Geocoder;
 import com.squared.locus.model.AvailabilityWindow;
 import com.squared.locus.model.ParkingSpot;
 import com.squared.locus.model.ParkingSpot.ParkingType;
@@ -26,17 +28,21 @@ import java.util.UUID;
 public class ParkingSpotService {
     private final ParkingSpotRepository parkingSpotRepository;
     private final UserRepository userRepository;
+    private final Geocoder geocoder;
 
-    public ParkingSpotService(ParkingSpotRepository parkingSpotRepository, UserRepository userRepository) {
+    public ParkingSpotService(ParkingSpotRepository parkingSpotRepository, UserRepository userRepository,
+                              Geocoder geocoder) {
         this.parkingSpotRepository = parkingSpotRepository;
         this.userRepository = userRepository;
-
+        this.geocoder = geocoder;
     }
 
     @Transactional
     public ParkingSpotResponse create(UUID callerId,CreateParkingSpotRequest request) {
         User owner = findUser(callerId);
         List<AvailabilityWindow> windows = toValidatedWindows(request.availabilityWindows());
+        // LOCUS-52: turn the address into map coordinates (null if it cannot be found).
+        Coordinates coordinates = geocoder.findCoordinates(request.address());
 
         ParkingSpot spot = new ParkingSpot(
                 owner.getId(),
@@ -49,6 +55,7 @@ public class ParkingSpotService {
                 request.restrictions()
         );
         spot.replaceAvailabilityWindows(windows);
+        setCoordinates(spot, coordinates);
         return toResponse(parkingSpotRepository.save(spot));
     }
 
@@ -63,6 +70,14 @@ public class ParkingSpotService {
                 ? null
                 : toValidatedWindows(request.availabilityWindows());
 
+        // LOCUS-52: a new address needs new coordinates. We ask the map service BEFORE
+        // locking the spot row, so the lock is never held while we wait on another
+        // service (Chapter 7: keep locked transactions short).
+        Coordinates coordinates = null;
+        if (request.address() != null) {
+            coordinates = geocoder.findCoordinates(request.address());
+        }
+
         ParkingSpot spot = getOwnedSpotForUpdate(spotId, ownerId);
         if (!spot.isActive()) {
             throw new ConflictException("SPOT_INACTIVE", "A deactivated parking spot cannot be updated.");
@@ -70,7 +85,10 @@ public class ParkingSpotService {
 
         if (request.title() != null) spot.setTitle(request.title());
         if (request.description() != null) spot.setDescription(request.description());
-        if (request.address() != null) spot.setAddress(request.address());
+        if (request.address() != null) {
+            spot.setAddress(request.address());
+            setCoordinates(spot, coordinates);
+        }
         if (request.photoUrl() != null) spot.setPhotoUrl(request.photoUrl());
         if (request.pricePerHour() != null) spot.setPricePerHour(request.pricePerHour());
         if (request.parkingType() != null) spot.setParkingType(toParkingType(request.parkingType()));
@@ -304,6 +322,18 @@ public class ParkingSpotService {
                 .orElseThrow(() -> new NotFoundException("SPOT_NOT_FOUND", "Parking spot not found."));
     }
 
+    // Saves the point on the map, or clears it when the address was not found,
+    // so an old point is never shown for a new address.
+    private void setCoordinates(ParkingSpot spot, Coordinates coordinates) {
+        if (coordinates == null) {
+            spot.setLatitude(null);
+            spot.setLongitude(null);
+        } else {
+            spot.setLatitude(coordinates.latitude());
+            spot.setLongitude(coordinates.longitude());
+        }
+    }
+
     private ParkingType toParkingType(String value) {
         return value == null ? null : ParkingType.fromDbValue(value);
     }
@@ -321,6 +351,8 @@ public class ParkingSpotService {
                 spot.getTitle(),
                 spot.getDescription(),
                 spot.getAddress(),
+                spot.getLatitude(),
+                spot.getLongitude(),
                 spot.getPhotoUrl(),
                 spot.getPricePerHour(),
                 spot.getParkingType() == null ? null : spot.getParkingType().getDbValue(),

@@ -49,3 +49,8 @@ locus:
     # How often the worker looks for payments to send, and how many tries before giving up.
     poll-interval-ms: 5000
     max-attempts: 5
+  geocoding:
+    # Free OpenStreetMap address search (no key). Its usage policy: max 1 request
+    # per second, a User-Agent naming the app, and no bulk geocoding.
+    url: https://nominatim.openstreetmap.org
+    user-agent: Locus-SOEN387-student-project

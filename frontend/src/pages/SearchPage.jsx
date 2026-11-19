@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { callApi, errorMessage, isSuccess, toApiTime, toInputTime } from '../api.js'
 import SpotCard from '../components/SpotCard.jsx'
 import DemoDetails from '../components/DemoDetails.jsx'
+import SpotMap from '../components/SpotMap.jsx'
 
 const PAGE_SIZE = 6
 const EVENT_BUFFER_MS = 15 * 60 * 1000
@@ -283,6 +284,12 @@ function SearchPage({ openSpot, demoMode, token }) {
                         {eventParking?.ranking === 'price' && ' · Proximity unavailable, ordered by price'}
                         {eventParking?.total > page.total && ` · Showing ${page.total} of ${eventParking.total} available spots`}
                     </p>
+
+                    {page.items.length > 0 && (
+                        <div className="card">
+                            <SpotMap spots={page.items} openSpot={openSpot} />
+                        </div>
+                    )}
 
                     <div className="grid">
                         {page.items.map((spot) => (

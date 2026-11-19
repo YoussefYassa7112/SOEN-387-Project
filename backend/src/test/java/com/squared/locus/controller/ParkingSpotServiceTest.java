@@ -4,8 +4,12 @@ import com.squared.locus.domain.ConflictException;
 import com.squared.locus.domain.InvalidRequestException;
 import com.squared.locus.domain.NotFoundException;
 import com.squared.locus.dto.AvailabilityPeriodRequest;
+import com.squared.locus.dto.CreateParkingSpotRequest;
+import com.squared.locus.dto.ParkingSpotResponse;
 import com.squared.locus.dto.SetAvailabilityRequest;
 import com.squared.locus.dto.UpdateParkingSpotRequest;
+import com.squared.locus.integration.Coordinates;
+import com.squared.locus.integration.Geocoder;
 import com.squared.locus.model.AvailabilityWindow;
 import com.squared.locus.model.ParkingSpot;
 import com.squared.locus.model.ParkingSpot.ParkingType;
@@ -46,6 +50,8 @@ class ParkingSpotServiceTest {
     private ParkingSpotRepository parkingSpotRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private Geocoder geocoder;
 
     private ParkingSpotService service;
 
@@ -58,7 +64,7 @@ class ParkingSpotServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ParkingSpotService(parkingSpotRepository, userRepository);
+        service = new ParkingSpotService(parkingSpotRepository, userRepository, geocoder);
 
         owner = new User("google-owner", "owner@example.com", "Owner");
         stranger = new User("google-stranger", "stranger@example.com", "Stranger");
@@ -233,6 +239,71 @@ class ParkingSpotServiceTest {
 
         assertThat(spot.isActive()).isFalse();
         verify(parkingSpotRepository).save(spot);
+    }
+
+    // ---- LOCUS-52 / LOCUS-54: map coordinates ----
+
+    @Test
+    void create_savesTheAddressCoordinates() {
+        whenUserExists(owner);
+        when(geocoder.findCoordinates("1455 De Maisonneuve Blvd W, Montreal"))
+                .thenReturn(new Coordinates(45.4972, -73.5790));
+        when(parkingSpotRepository.save(any(ParkingSpot.class))).thenAnswer(call -> call.getArgument(0));
+
+        ParkingSpotResponse response = service.create(ownerId, newSpotRequest());
+
+        assertThat(response.latitude()).isEqualTo(45.4972);
+        assertThat(response.longitude()).isEqualTo(-73.5790);
+    }
+
+    @Test
+    void create_mapServiceDown_spotIsStillSavedWithoutCoordinates() {
+        whenUserExists(owner);
+        when(geocoder.findCoordinates(any())).thenReturn(null);   // not found or not reachable
+        when(parkingSpotRepository.save(any(ParkingSpot.class))).thenAnswer(call -> call.getArgument(0));
+
+        ParkingSpotResponse response = service.create(ownerId, newSpotRequest());
+
+        assertThat(response.title()).isEqualTo("Driveway near Concordia");
+        assertThat(response.latitude()).isNull();
+        assertThat(response.longitude()).isNull();
+    }
+
+    @Test
+    void update_newAddress_getsNewCoordinates() {
+        spot.setLatitude(1.0);
+        spot.setLongitude(2.0);
+        whenUserExists(owner);
+        whenSpotExists();
+        when(parkingSpotRepository.findOwnedForUpdate(spotId, ownerId)).thenReturn(Optional.of(spot));
+        when(parkingSpotRepository.save(any(ParkingSpot.class))).thenAnswer(call -> call.getArgument(0));
+        when(geocoder.findCoordinates("500 Rue Sherbrooke, Montreal")).thenReturn(new Coordinates(45.5, -73.57));
+
+        UpdateParkingSpotRequest request = new UpdateParkingSpotRequest(
+                null, null, "500 Rue Sherbrooke, Montreal", null, null, null, null, null);
+        service.update(spotId, ownerId, request);
+
+        assertThat(spot.getLatitude()).isEqualTo(45.5);
+        assertThat(spot.getLongitude()).isEqualTo(-73.57);
+    }
+
+    @Test
+    void update_withoutNewAddress_doesNotCallTheMapService() {
+        whenUserExists(owner);
+        whenSpotExists();
+        when(parkingSpotRepository.findOwnedForUpdate(spotId, ownerId)).thenReturn(Optional.of(spot));
+        when(parkingSpotRepository.save(any(ParkingSpot.class))).thenAnswer(call -> call.getArgument(0));
+
+        runOperation("update", ownerId);   // changes only the title and price
+
+        verify(geocoder, never()).findCoordinates(any());
+    }
+
+    private CreateParkingSpotRequest newSpotRequest() {
+        return new CreateParkingSpotRequest(
+                "Driveway near Concordia", null, "1455 De Maisonneuve Blvd W, Montreal", null,
+                new BigDecimal("10.00"), "driveway", null,
+                List.of(new AvailabilityPeriodRequest(START, START.plusHours(4))));
     }
 
     private void whenUserExists(User user) {
