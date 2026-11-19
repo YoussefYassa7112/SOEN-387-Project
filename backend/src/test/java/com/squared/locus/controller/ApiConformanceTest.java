@@ -372,6 +372,31 @@ class ApiConformanceTest {
                 .andExpect(openApi().isValid(contract));
     }
 
+    // LOCUS-31
+    @Test
+    void cancelReservationReturnsCancelledReservation() throws Exception {
+        var cancelled = new ReservationResponse(reservationId, spotId, userId,
+                OffsetDateTime.parse("2026-12-01T10:00:00-05:00"), OffsetDateTime.parse("2026-12-01T12:00:00-05:00"),
+                "cancelled", new BigDecimal("20.00"), "CAD", OffsetDateTime.parse("2026-11-01T12:00:00-05:00"));
+        when(reservationService.cancel(reservationId, userId)).thenReturn(cancelled);
+
+        mockMvc.perform(delete("/api/v1/reservations/{reservationId}", reservationId)
+                        .with(jwt().jwt(token -> token.subject(userId.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(openApi().isValid(contract));
+    }
+
+    @Test
+    void cancelReservationThatAlreadyStartedIsConflict() throws Exception {
+        when(reservationService.cancel(reservationId, userId))
+                .thenThrow(new ConflictException("RESERVATION_NOT_CANCELLABLE", "Only upcoming reservations can be cancelled."));
+
+        mockMvc.perform(delete("/api/v1/reservations/{reservationId}", reservationId)
+                        .with(jwt().jwt(token -> token.subject(userId.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(openApi().isValid(contract));
+    }
+
     @Test
     void listMyReservationsWithoutTokenIsUnauthorized() throws Exception {
         mockMvc.perform(get("/api/v1/me/reservations"))

@@ -9,8 +9,15 @@ const STATUS_TEXT = {
     cancelled: 'Cancelled',
 }
 
-// One reservation card.
-function ReservationCard({ answer, openSpot, demoMode }) {
+// LOCUS-31: same rule as the backend: waiting for payment or confirmed, and not started yet.
+// The backend checks it again; this only decides whether to show the button.
+function canCancel(reservation) {
+    const stillActive = reservation.status === 'pendingPayment' || reservation.status === 'confirmed'
+    return stillActive && new Date(reservation.startTime) > new Date()
+}
+
+// One reservation card. onCancel is only given for my own list.
+function ReservationCard({ answer, openSpot, onCancel, demoMode }) {
     return (
         <div className="card">
             {isSuccess(answer) ? (
@@ -19,7 +26,14 @@ function ReservationCard({ answer, openSpot, demoMode }) {
                     <p><strong>{showTime(answer.body.startTime)}</strong> &rarr; <strong>{showTime(answer.body.endTime)}</strong></p>
                     <p>Total: {showPrice(answer.body.totalPrice)} {answer.body.currency}</p>
                     <p className="small muted">ID: {answer.body.reservationId}</p>
-                    <button className="button small secondary" onClick={() => openSpot(answer.body.spotId)}>View spot</button>
+                    <div className="row">
+                        <button className="button small secondary" onClick={() => openSpot(answer.body.spotId)}>View spot</button>
+                        {onCancel && canCancel(answer.body) && (
+                            <button className="button small secondary" onClick={() => onCancel(answer.body.reservationId)}>
+                                Cancel
+                            </button>
+                        )}
+                    </div>
                 </div>
             ) : (
                 <p className="message error">{errorMessage(answer)}</p>
@@ -36,6 +50,9 @@ function ReservationsPage({ token, reservationIds, openSpot, demoMode }) {
     const [listResult, setListResult] = useState(null)
     const [searchId, setSearchId] = useState('')
     const [foundResult, setFoundResult] = useState(null)
+    const [cancelResult, setCancelResult] = useState(null)
+    // Increased after a cancellation, to load the list again.
+    const [reloadCount, setReloadCount] = useState(0)
 
     useEffect(() => {
         const loadMine = async () => {
@@ -44,7 +61,16 @@ function ReservationsPage({ token, reservationIds, openSpot, demoMode }) {
         if (token) {
             loadMine()
         }
-    }, [token, reservationIds])
+    }, [token, reservationIds, reloadCount])
+
+    // LOCUS-31: cancel one of my reservations (DELETE /reservations/{id}).
+    const handleCancel = async (reservationId) => {
+        if (!window.confirm('Cancel this reservation? There is no refund.')) {
+            return
+        }
+        setCancelResult(await callApi('DELETE', '/reservations/' + reservationId, token))
+        setReloadCount(reloadCount + 1)
+    }
 
     // Look up one reservation by its ID. Someone else's ID gets a 403 (useful in the demo).
     const handleFind = async (event) => {
@@ -77,6 +103,10 @@ function ReservationsPage({ token, reservationIds, openSpot, demoMode }) {
                 </div>
             )}
 
+            {cancelResult && isSuccess(cancelResult) && <p className="message success">Reservation cancelled.</p>}
+            {cancelResult && !isSuccess(cancelResult) && <p className="message error">{errorMessage(cancelResult)}</p>}
+            <DemoDetails demoMode={demoMode} result={cancelResult} />
+
             {listResult === null && <p>Loading...</p>}
             {listResult && !isSuccess(listResult) && <p className="message error">{errorMessage(listResult)}</p>}
             {listResult && isSuccess(listResult) && reservations.length === 0 && (
@@ -89,6 +119,7 @@ function ReservationsPage({ token, reservationIds, openSpot, demoMode }) {
                         key={reservation.reservationId}
                         answer={{ status: 200, body: reservation }}
                         openSpot={openSpot}
+                        onCancel={handleCancel}
                         demoMode={false}
                     />
                 ))}

@@ -42,6 +42,22 @@ class PaymentProcessorTest {
         event = new PaymentOutboxEvent(reservation.getId(), "pm_card_visa");
         when(outbox.findNextDueForUpdate()).thenReturn(Optional.of(event));
         when(reservations.findById(any())).thenReturn(Optional.of(reservation));
+        // The "fresh from the database" status is the reservation's current status.
+        when(reservations.findStatusById(any())).thenAnswer(call -> reservation.getStatus());
+    }
+
+    // LOCUS-31: the driver cancelled while Stripe was charging. The worker must not
+    // overwrite "cancelled" with "confirmed"; the payment is flagged for a refund instead.
+    @Test
+    void cancelledWhilePayingIsNotConfirmed() {
+        when(stripe.charge(any(), any(), any(), any())).thenReturn(PaymentResult.succeeded("pi_999"));
+        when(reservations.findStatusById(any())).thenReturn(Reservation.Status.CANCELLED);
+
+        processor.processNext();
+
+        assertThat(reservation.getStatus()).isNotEqualTo(Reservation.Status.CONFIRMED);
+        assertThat(event.getStatus()).isEqualTo(PaymentOutboxEvent.Status.FAILED);
+        assertThat(event.getLastError()).startsWith("NEEDS_REFUND");
     }
 
     @Test

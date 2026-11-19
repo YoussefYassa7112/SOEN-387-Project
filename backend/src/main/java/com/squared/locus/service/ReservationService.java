@@ -146,6 +146,31 @@ public class ReservationService {
         return ReservationResponse.from(reservation);
     }
 
+    // LOCUS-31: the driver cancels one of their reservations.
+    @Transactional
+    public ReservationResponse cancel(UUID reservationId, UUID userId) {
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new NotFoundException("RESERVATION_NOT_FOUND", "Reservation not found."));
+
+        if (!reservation.getUserId().equals(userId)) {
+            throw new ForbiddenException("NOT_RESERVATION_OWNER", "You can only cancel your own reservations.");
+        }
+
+        // Take the spot's lock, the same one bookings and the payment worker take, so the worker
+        // cannot confirm this reservation at the same moment we cancel it.
+        parkingSpotRepository.findForUpdate(reservation.getSpotId());
+
+        // Now that we hold the lock, read the status again: the worker may have just changed it.
+        Reservation.Status currentStatus = reservationRepository.findStatusById(reservationId);
+        if (!Reservation.canCancel(currentStatus, reservation.getStartTime(), OffsetDateTime.now())) {
+            throw new ConflictException("RESERVATION_NOT_CANCELLABLE",
+                    "Only upcoming reservations that are waiting for payment or confirmed can be cancelled.");
+        }
+
+        reservation.cancel();
+        return ReservationResponse.from(reservationRepository.save(reservation));
+    }
+
     // LOCUS-30: every reservation of the signed-in driver. Only their own, because the
     // userId comes from their token, never from the request.
     @Transactional(readOnly = true)
