@@ -47,6 +47,13 @@ public class ParkingSpot {
     @Column(name = "restrictions", length = 1000)
     private String restrictions;
 
+    // Where the spot is on the map. Empty (null) when the address could not be found.
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
