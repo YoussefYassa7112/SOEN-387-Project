@@ -48,4 +48,16 @@ class ReservationServiceTest {
                 .isInstanceOfSatisfying(NotFoundException.class,
                         error -> assertThat(error.getCode()).isEqualTo("RESERVATION_NOT_FOUND"));
     }
+
+    // LOCUS-30
+    @Test
+    void driverSeesOnlyTheirOwnReservations() {
+        when(reservations.findAllByUserIdOrderByStartTimeDesc(driver)).thenReturn(List.of(reservation(), reservation()));
+
+        var mine = service.listMine(driver);
+
+        assertThat(mine).hasSize(2);
+        assertThat(mine).allMatch(r -> r.userId().equals(driver));
+        verify(reservations).findAllByUserIdOrderByStartTimeDesc(driver);
+    }
 }
