@@ -93,8 +93,14 @@ public class ParkingSpotController {
             @RequestParam(required = false) BigDecimal maxPricePerHour,
             @RequestParam(required = false) String parkingType,
             @RequestParam(required = false) String sort,
+            @RequestParam(required = false) Double destinationLatitude,
+            @RequestParam(required = false) Double destinationLongitude,
             @RequestParam(defaultValue = "20") int limit,
             @RequestParam(defaultValue = "0") int offset) {
+        if ("closest".equals(sort) || destinationLatitude != null || destinationLongitude != null) {
+            return parkingSpotService.search(location, startTime, endTime, maxPricePerHour, parkingType, limit, offset,
+                    sort, destinationLatitude, destinationLongitude);
+        }
         if (sort == null) {
             return parkingSpotService.search(location, startTime, endTime, maxPricePerHour, parkingType, limit, offset);
         }

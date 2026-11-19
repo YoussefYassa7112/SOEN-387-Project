@@ -136,11 +136,24 @@ public class ParkingSpotService {
     public ParkingSpotPageResponse search(String location, OffsetDateTime startTime, OffsetDateTime endTime,
                                           BigDecimal maxPricePerHour, String parkingType,
                                           int limit, int offset, String sort) {
+        return search(location, startTime, endTime, maxPricePerHour, parkingType, limit, offset, sort, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public ParkingSpotPageResponse search(String location, OffsetDateTime startTime, OffsetDateTime endTime,
+                                         BigDecimal maxPricePerHour, String parkingType, int limit, int offset,
+                                         String sort, Double destinationLatitude, Double destinationLongitude) {
         checkPaging(limit, offset);
         ParkingType wantedType = validateSearchFilters(
                 new ParkingSearchFilters(location, startTime, endTime, maxPricePerHour, parkingType));
-        if (!"default".equals(sort) && !"cheapest".equals(sort)) {
-            throw new InvalidRequestException("INVALID_SORT", "Sort must be default or cheapest.");
+        boolean closest = "closest".equals(sort);
+        if (closest) {
+            if (destinationLatitude == null || !(Math.abs(destinationLatitude) <= 90)
+                    || destinationLongitude == null || !(Math.abs(destinationLongitude) <= 180)) {
+                throw new InvalidRequestException("INVALID_DESTINATION", "Enter valid venue latitude and longitude.");
+            }
+        } else if (!"default".equals(sort) && !"cheapest".equals(sort)) {
+            throw new InvalidRequestException("INVALID_SORT", "Sort must be default, cheapest, or closest.");
         }
 
         List<UUID> reservedSpotIds = new ArrayList<>();
@@ -153,13 +166,16 @@ public class ParkingSpotService {
             if (matchesLocation(spot, location)
                     && matchesInterval(spot, startTime, endTime, reservedSpotIds)
                     && matchesMaxPrice(spot, maxPricePerHour)
-                    && (wantedType == null || wantedType == spot.getParkingType())) {
+                    && (wantedType == null || wantedType == spot.getParkingType())
+                    && (!closest || (spot.getLatitude() != null && spot.getLongitude() != null))) {
                 matches.add(spot);
             }
         }
 
         if ("cheapest".equals(sort)) {
             matches.sort(Comparator.comparing(ParkingSpot::getPricePerHour));
+        } else if (closest) {
+            matches.sort(Comparator.comparingDouble(spot -> distanceFrom(spot, destinationLatitude, destinationLongitude)));
         }
 
         int from = Math.min(offset, matches.size());
@@ -196,6 +212,16 @@ public class ParkingSpotService {
         checkOptionalInterval(filters.startTime(), filters.endTime());
         checkMaxPrice(filters.maxPricePerHour());
         return parseParkingTypeFilter(filters.parkingType());
+    }
+
+    private double distanceFrom(ParkingSpot spot, double destinationLatitude, double destinationLongitude) {
+        // Haversine distance in kilometres.
+        double latitude = Math.toRadians(spot.getLatitude());
+        double destination = Math.toRadians(destinationLatitude);
+        double latHalfSine = Math.sin((latitude - destination) / 2);
+        double lonHalfSine = Math.sin(Math.toRadians(spot.getLongitude() - destinationLongitude) / 2);
+        double a = latHalfSine * latHalfSine + Math.cos(latitude) * Math.cos(destination) * lonHalfSine * lonHalfSine;
+        return 12742 * Math.asin(Math.sqrt(Math.min(1, a)));
     }
 
     private void checkPaging(int limit, int offset) {
