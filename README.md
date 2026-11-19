@@ -73,6 +73,7 @@ The backend reads its configuration from environment variables. See `backend/.en
 | `DATABASE_USERNAME` | Database user |
 | `DATABASE_PASSWORD` | Database password |
 | `PORT` | HTTP port (default `8080`) |
+| `STRIPE_SECRET_KEY` | Stripe **test-mode** secret key (`sk_test_...`). Optional: without it the payment worker stays off and reservations stay `pendingPayment`. Only Stripe's fake test cards are used (`pm_card_visa`, `pm_card_chargeDeclined`). |
 
 Set them in your shell (or in your IDE run configuration), then start the service:
 
@@ -143,6 +144,8 @@ npm run dev
 ```
 
 Then open <http://localhost:5173>.
+
+To book with Stripe's card form, also set `VITE_STRIPE_PUBLISHABLE_KEY` (the **test-mode publishable** key, `pk_test_...`) in `frontend/.env.local`. Only Stripe's test cards work: `4242 4242 4242 4242` succeeds, `4000 0000 0000 0002` is declined (any future date, any CVC). Without the key, the booking form shows a list of test cards instead.
 
 ## Secrets
 

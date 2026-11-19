@@ -146,6 +146,14 @@ textarea {
   background: white;
 }
 
+/* Stripe's card box, made to look like our other inputs. */
+.card-input {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+}
+
 .form {
   max-width: 600px;
   margin: 12px 0;
