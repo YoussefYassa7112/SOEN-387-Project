@@ -4,14 +4,18 @@ import com.squared.locus.integration.PaymentGateway;
 import com.squared.locus.integration.PaymentResult;
 import com.squared.locus.model.PaymentOutboxEvent;
 import com.squared.locus.model.Reservation;
+import com.squared.locus.repository.ParkingSpotRepository;
 import com.squared.locus.repository.PaymentOutboxRepository;
 import com.squared.locus.repository.ReservationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -23,8 +27,9 @@ import static org.mockito.Mockito.*;
 class PaymentProcessorTest {
     private final PaymentOutboxRepository outbox = mock(PaymentOutboxRepository.class);
     private final ReservationRepository reservations = mock(ReservationRepository.class);
+    private final ParkingSpotRepository spots = mock(ParkingSpotRepository.class);
     private final PaymentGateway stripe = mock(PaymentGateway.class);
-    private final PaymentProcessor processor = new PaymentProcessor(outbox, reservations, stripe, 3);
+    private final PaymentProcessor processor = new PaymentProcessor(outbox, reservations, spots, stripe, 3);
 
     private Reservation reservation;
     private PaymentOutboxEvent event;
@@ -48,6 +53,26 @@ class PaymentProcessorTest {
         assertThat(reservation.getStatus()).isEqualTo(Reservation.Status.CONFIRMED);
         assertThat(event.getStatus()).isEqualTo(PaymentOutboxEvent.Status.DONE);
         assertThat(event.getPaymentIntentId()).isEqualTo("pi_123");
+    }
+
+    // The spot is locked AFTER Stripe answers (bookings never wait on Stripe)
+    // and BEFORE the reservation becomes confirmed (no booking can slip in between).
+    @Test
+    void spotIsLockedAfterStripeAnswersAndBeforeConfirming() {
+        when(stripe.charge(any(), any(), any(), any())).thenReturn(PaymentResult.succeeded("pi_123"));
+        List<Reservation.Status> statusWhenLocked = new ArrayList<>();
+        when(spots.findForUpdate(reservation.getSpotId())).thenAnswer(call -> {
+            statusWhenLocked.add(reservation.getStatus());
+            return Optional.empty();
+        });
+
+        processor.processNext();
+
+        InOrder order = inOrder(stripe, spots);
+        order.verify(stripe).charge(any(), any(), any(), any());
+        order.verify(spots).findForUpdate(reservation.getSpotId());
+        assertThat(statusWhenLocked).containsExactly(Reservation.Status.PENDING_PAYMENT);
+        assertThat(reservation.getStatus()).isEqualTo(Reservation.Status.CONFIRMED);
     }
 
     @Test

@@ -5,6 +5,7 @@ import com.squared.locus.integration.PaymentGateway;
 import com.squared.locus.integration.PaymentResult;
 import com.squared.locus.model.PaymentOutboxEvent;
 import com.squared.locus.model.Reservation;
+import com.squared.locus.repository.ParkingSpotRepository;
 import com.squared.locus.repository.PaymentOutboxRepository;
 import com.squared.locus.repository.ReservationRepository;
 import org.slf4j.Logger;
@@ -23,15 +24,18 @@ public class PaymentProcessor {
 
     private final PaymentOutboxRepository outboxRepository;
     private final ReservationRepository reservationRepository;
+    private final ParkingSpotRepository parkingSpotRepository;
     private final PaymentGateway paymentGateway;
     private final int maxAttempts;
 
     public PaymentProcessor(PaymentOutboxRepository outboxRepository,
                             ReservationRepository reservationRepository,
+                            ParkingSpotRepository parkingSpotRepository,
                             PaymentGateway paymentGateway,
                             @Value("${locus.payments.max-attempts:5}") int maxAttempts) {
         this.outboxRepository = outboxRepository;
         this.reservationRepository = reservationRepository;
+        this.parkingSpotRepository = parkingSpotRepository;
         this.paymentGateway = paymentGateway;
         this.maxAttempts = maxAttempts;
     }
@@ -66,6 +70,12 @@ public class PaymentProcessor {
 
         switch (result.outcome()) {
             case SUCCEEDED -> {
+                // Lock the parking spot, the same lock a new booking takes. Until this transaction
+                // ends, no booking can run, so a new booking cannot slip in between the check
+                // below and saving "confirmed" (which would give the same time to two drivers).
+                // Taken only after Stripe answered, so bookings never wait on Stripe.
+                parkingSpotRepository.findForUpdate(reservation.getSpotId());
+
                 if (PaymentHold.isExpired(reservation.getCreatedAt(), OffsetDateTime.now())) {
                     // Paid, but the hold expired while Stripe was answering: the spot may be taken.
                     // Confirming could double-book, so this needs a refund. Left to a human (Chapter 9).
