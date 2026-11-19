@@ -2,6 +2,7 @@ package com.squared.locus.service;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -143,5 +144,15 @@ public class ReservationService {
             throw new ForbiddenException("NOT_RESERVATION_OWNER", "You can only view your own reservations.");
         }
         return ReservationResponse.from(reservation);
+    }
+
+    // LOCUS-30: every reservation of the signed-in driver. Only their own, because the
+    // userId comes from their token, never from the request.
+    @Transactional(readOnly = true)
+    public List<ReservationResponse> listMine(UUID userId) {
+        return reservationRepository.findAllByUserIdOrderByStartTimeDesc(userId)
+                .stream()
+                .map(ReservationResponse::from)
+                .toList();
     }
 }

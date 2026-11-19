@@ -1,6 +1,7 @@
 package com.squared.locus.repository;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -19,4 +20,8 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
                        @Param("startTime") OffsetDateTime startTime,
                        @Param("endTime") OffsetDateTime endTime,
                        @Param("holdCutoff") OffsetDateTime holdCutoff);
+
+    // LOCUS-30: all reservations of one driver, the latest booking times first.
+    // Spring builds the query from the method name.
+    List<Reservation> findAllByUserIdOrderByStartTimeDesc(UUID userId);
 }

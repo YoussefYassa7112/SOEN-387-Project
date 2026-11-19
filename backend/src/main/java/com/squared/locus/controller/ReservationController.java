@@ -10,6 +10,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -43,5 +44,12 @@ public class ReservationController {
             @AuthenticationPrincipal Jwt jwt) {
         UUID userId = UUID.fromString(jwt.getSubject());
         return reservationService.getById(reservationId, userId);
+    }
+
+    // LOCUS-30: the signed-in driver's reservations.
+    @GetMapping("/me/reservations")
+    public List<ReservationResponse> listMine(@AuthenticationPrincipal Jwt jwt) {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        return reservationService.listMine(userId);
     }
 }

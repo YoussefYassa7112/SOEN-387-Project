@@ -361,6 +361,24 @@ class ApiConformanceTest {
                 .andExpect(openApi().isValid(contract));
     }
 
+    // LOCUS-30
+    @Test
+    void listMyReservationsReturnsArray() throws Exception {
+        when(reservationService.listMine(userId)).thenReturn(List.of(sampleReservation()));
+
+        mockMvc.perform(get("/api/v1/me/reservations")
+                        .with(jwt().jwt(token -> token.subject(userId.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(openApi().isValid(contract));
+    }
+
+    @Test
+    void listMyReservationsWithoutTokenIsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/me/reservations"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(openApi().isValid(contract));
+    }
+
     @Test
     void getReservationWithoutTokenIsUnauthorized() throws Exception {
         mockMvc.perform(get("/api/v1/reservations/{reservationId}", reservationId))
