@@ -74,6 +74,19 @@ public class Reservation {
         }
     }
 
+    // LOCUS-31: cancellation policy. Only a reservation that is still waiting for payment or
+    // confirmed can be cancelled, and only before it starts. No refund is made (the API
+    // contract says refunds are not promised in v1).
+    public static boolean canCancel(Status status, OffsetDateTime startTime, OffsetDateTime now) {
+        boolean stillActive = status == Status.PENDING_PAYMENT || status == Status.CONFIRMED;
+        return stillActive && now.isBefore(startTime);
+    }
+
+    // CANCELLED no longer blocks the spot, so the time slot is free again.
+    public void cancel() {
+        status = Status.CANCELLED;
+    }
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) {

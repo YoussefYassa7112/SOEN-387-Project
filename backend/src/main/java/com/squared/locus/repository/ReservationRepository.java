@@ -24,4 +24,9 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
     // LOCUS-30: all reservations of one driver, the latest booking times first.
     // Spring builds the query from the method name.
     List<Reservation> findAllByUserIdOrderByStartTimeDesc(UUID userId);
+
+    // Reads the status straight from the database, so it is the latest value even if
+    // another transaction just changed it (used after taking the spot lock).
+    @Query("select r.status from Reservation r where r.id = :id")
+    Reservation.Status findStatusById(@Param("id") UUID id);
 }

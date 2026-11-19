@@ -46,6 +46,15 @@ public class ReservationController {
         return reservationService.getById(reservationId, userId);
     }
 
+    // LOCUS-31: cancel one of my reservations. The rules are in the service.
+    @DeleteMapping("/reservations/{reservationId}")
+    public ReservationResponse cancel(
+            @PathVariable UUID reservationId,
+            @AuthenticationPrincipal Jwt jwt) {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        return reservationService.cancel(reservationId, userId);
+    }
+
     // LOCUS-30: the signed-in driver's reservations.
     @GetMapping("/me/reservations")
     public List<ReservationResponse> listMine(@AuthenticationPrincipal Jwt jwt) {

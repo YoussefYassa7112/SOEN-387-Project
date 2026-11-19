@@ -68,14 +68,26 @@ public class PaymentProcessor {
         PaymentResult result = paymentGateway.charge(
                 reservation.getId(), reservation.getTotalPrice(), reservation.getCurrency(), event.getPaymentMethod());
 
+        // Lock the parking spot, the same lock new bookings and cancellations take. Until this
+        // transaction ends, nothing else can change who holds this spot, so a new booking cannot
+        // slip in before we save "confirmed", and a cancellation cannot be overwritten.
+        // Taken only after Stripe answered, so bookings never wait on Stripe.
+        parkingSpotRepository.findForUpdate(reservation.getSpotId());
+
+        // LOCUS-31: the driver may have cancelled while Stripe was answering. Read the status again.
+        if (reservationRepository.findStatusById(reservation.getId()) != Reservation.Status.PENDING_PAYMENT) {
+            if (result.outcome() == PaymentResult.Outcome.SUCCEEDED) {
+                event.markFailed(result.paymentIntentId(), "NEEDS_REFUND: paid after the reservation was cancelled.");
+                log.error("NEEDS_REFUND: reservation {} was paid after it was cancelled (Stripe {})",
+                        reservation.getId(), result.paymentIntentId());
+            } else {
+                event.markDone(null);
+            }
+            return true;
+        }
+
         switch (result.outcome()) {
             case SUCCEEDED -> {
-                // Lock the parking spot, the same lock a new booking takes. Until this transaction
-                // ends, no booking can run, so a new booking cannot slip in between the check
-                // below and saving "confirmed" (which would give the same time to two drivers).
-                // Taken only after Stripe answered, so bookings never wait on Stripe.
-                parkingSpotRepository.findForUpdate(reservation.getSpotId());
-
                 if (PaymentHold.isExpired(reservation.getCreatedAt(), OffsetDateTime.now())) {
                     // Paid, but the hold expired while Stripe was answering: the spot may be taken.
                     // Confirming could double-book, so this needs a refund. Left to a human (Chapter 9).
