@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.slf4j.MDC;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -26,6 +27,9 @@ import jakarta.servlet.DispatcherType;
 
 @Configuration
 public class SecurityConfig {
+
+    @Value("${FRONTEND_ORIGIN:http://localhost:5173}")
+    private String frontendOrigin = "http://localhost:5173";
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http)
@@ -121,7 +125,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
 
         config.setAllowedOrigins(
-                List.of("http://localhost:5173")
+                List.of(frontendOrigin)
         );
 
         config.setAllowedMethods(

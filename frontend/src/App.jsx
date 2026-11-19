@@ -114,7 +114,7 @@ function App() {
             )}
 
             <main className="container">
-                {page === 'search' && <SearchPage openSpot={openSpot} demoMode={demoMode} />}
+                {page === 'search' && <SearchPage token={token} openSpot={openSpot} demoMode={demoMode} />}
                 {page === 'spot' && (
                     <SpotPage
                         spotId={spotId}

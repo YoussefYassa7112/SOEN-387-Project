@@ -5,6 +5,8 @@ import com.squared.locus.domain.DomainException;
 import com.squared.locus.domain.InvalidRequestException;
 import com.squared.locus.domain.NotFoundException;
 import com.squared.locus.service.ForbiddenException;
+import com.squared.locus.service.GeminiSearchService;
+import com.squared.locus.service.EventSearchService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -116,6 +118,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleWrongContentType(HttpMediaTypeNotSupportedException e) {
         return error(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_MEDIA_TYPE",
                 "Send the request body as application/json.", null);
+    }
+
+    @ExceptionHandler(GeminiSearchService.Unavailable.class)
+    public ResponseEntity<ApiError> handleGeminiUnavailable() {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "AI_SEARCH_UNAVAILABLE",
+                "AI search is unavailable right now. You can still use the regular filters.", null);
+    }
+
+    @ExceptionHandler(EventSearchService.Unavailable.class)
+    public ResponseEntity<ApiError> handleEventSearchUnavailable() {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "EVENT_SEARCH_UNAVAILABLE",
+                "Event lookup is temporarily unavailable. Try again in a moment or enter the parking times manually.", null);
     }
 
     // ---- Anything else is a bug on our side ----

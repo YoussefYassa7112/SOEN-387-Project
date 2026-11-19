@@ -1,0 +1,5 @@
+CREATE TABLE event_venues (
+    name TEXT PRIMARY KEY,
+    latitude DOUBLE PRECISION NOT NULL CHECK (latitude BETWEEN -90 AND 90),
+    longitude DOUBLE PRECISION NOT NULL CHECK (longitude BETWEEN -180 AND 180)
+);

@@ -92,9 +92,19 @@ public class ParkingSpotController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endTime,
             @RequestParam(required = false) BigDecimal maxPricePerHour,
             @RequestParam(required = false) String parkingType,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) Double destinationLatitude,
+            @RequestParam(required = false) Double destinationLongitude,
             @RequestParam(defaultValue = "20") int limit,
             @RequestParam(defaultValue = "0") int offset) {
-        return parkingSpotService.search(location, startTime, endTime, maxPricePerHour, parkingType, limit, offset);
+        if ("closest".equals(sort) || destinationLatitude != null || destinationLongitude != null) {
+            return parkingSpotService.search(location, startTime, endTime, maxPricePerHour, parkingType, limit, offset,
+                    sort, destinationLatitude, destinationLongitude);
+        }
+        if (sort == null) {
+            return parkingSpotService.search(location, startTime, endTime, maxPricePerHour, parkingType, limit, offset);
+        }
+        return parkingSpotService.search(location, startTime, endTime, maxPricePerHour, parkingType, limit, offset, sort);
     }
 
     // LOCUS-24: check one spot for one time interval.

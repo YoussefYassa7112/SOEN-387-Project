@@ -55,6 +55,165 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /parking-spots/event-parking:
+    post:
+      tags: [Parking Spots]
+      summary: Rank available parking near an event venue
+      operationId: rankEventParking
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [venue, address, startTime, endTime]
+              properties:
+                venue:
+                  type: string
+                  maxLength: 300
+                address:
+                  type: string
+                  maxLength: 300
+                startTime:
+                  type: string
+                  format: date-time
+                  description: Beginning of the parking window, including arrival time.
+                endTime:
+                  type: string
+                  format: date-time
+                  description: End of the parking window, including return time.
+                maxPricePerHour:
+                  type: [number, 'null']
+                  minimum: 0
+                parkingType:
+                  type: [string, 'null']
+      responses:
+        '200':
+          description: Up to 40 available spots and how they were ranked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total, ranking]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ParkingSpot'
+                  total:
+                    type: integer
+                  ranking:
+                    type: string
+                    enum: [none, distance, estimated, price]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /parking-spots/lookup-event:
+    post:
+      tags: [Parking Spots]
+      summary: Look up a public event and suggest a parking window
+      operationId: lookupParkingEvent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                  minLength: 1
+                  maxLength: 300
+      responses:
+        '200':
+          description: Event details and an optional saved venue location
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  venue:
+                    type: string
+                  address:
+                    type: [string, 'null']
+                  startTime:
+                    type: string
+                    format: date-time
+                  endTime:
+                    type: [string, 'null']
+                    format: date-time
+                  sourceUrl:
+                    type: string
+                    format: uri
+                  coordinates:
+                    type: [object, 'null']
+                    properties:
+                      latitude:
+                        type: number
+                      longitude:
+                        type: number
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No clear event match
+        '503':
+          description: Event lookup is unavailable
+  /parking-spots/interpret-search:
+    post:
+      tags: [Parking Spots]
+      summary: Interpret a natural-language parking search
+      operationId: interpretParkingSearch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                  minLength: 1
+                  maxLength: 300
+      responses:
+        '200':
+          description: Suggested search filters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  location:
+                    type: [string, 'null']
+                  startTime:
+                    type: [string, 'null']
+                    format: date-time
+                  endTime:
+                    type: [string, 'null']
+                    format: date-time
+                  maxPricePerHour:
+                    type: [number, 'null']
+                  parkingType:
+                    type: [string, 'null']
+                    enum: [driveway, privateLot, garage, other, null]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: AI search is unavailable. Regular parking search remains available.
   /parking-spots:
     get:
       tags: [Parking Spots]
@@ -92,6 +251,26 @@ paths:
           in: query
           schema:
             $ref: '#/components/schemas/ParkingType'
+        - name: sort
+          in: query
+          description: Use cheapest for hourly price or closest for straight-line distance to the supplied coordinates.
+          schema:
+            type: string
+            enum: [default, cheapest, closest]
+        - name: destinationLatitude
+          in: query
+          description: Required with closest sorting.
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+        - name: destinationLongitude
+          in: query
+          description: Required with closest sorting.
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
         - name: limit
           in: query
           schema:
