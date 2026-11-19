@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { callApi, errorMessage, isSuccess, toApiTime } from '../api.js'
 import SpotCard from '../components/SpotCard.jsx'
 import DemoDetails from '../components/DemoDetails.jsx'
+import SpotMap from '../components/SpotMap.jsx'
 
 const PAGE_SIZE = 6
 
@@ -89,6 +90,12 @@ function SearchPage({ openSpot, demoMode }) {
             {page && (
                 <div>
                     <p className="muted">{page.total} spot(s) found</p>
+
+                    {page.items.length > 0 && (
+                        <div className="card">
+                            <SpotMap spots={page.items} openSpot={openSpot} />
+                        </div>
+                    )}
 
                     <div className="grid">
                         {page.items.map((spot) => (
