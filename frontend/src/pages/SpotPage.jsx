@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
+import { CardElement, useElements, useStripe } from '@stripe/react-stripe-js'
 import { callApi, errorMessage, isSuccess, showPrice, showTime, toApiTime } from '../api.js'
 import DemoDetails from '../components/DemoDetails.jsx'
+import { STRIPE_ENABLED } from '../stripe.js'
+
+// Fallback when there is no Stripe publishable key: Stripe's ready-made test cards.
+const TEST_CARDS = [
+    { value: 'pm_card_visa', label: 'Visa - payment succeeds' },
+    { value: 'pm_card_chargeDeclined', label: 'Declined card - payment fails' },
+]
 
 const REASONS = {
     outsideOwnerAvailability: 'The owner has not made the spot available for this whole time.',
@@ -14,7 +22,18 @@ function SpotPage({ spotId, token, goBack, saveReservation, demoMode }) {
 
     const [startTime, setStartTime] = useState('')
     const [endTime, setEndTime] = useState('')
+    const [testCard, setTestCard] = useState(TEST_CARDS[0].value)
     const [checkResult, setCheckResult] = useState(null)
+
+    // Stripe's card form. The card number goes straight to Stripe, never to our server;
+    // Stripe gives back an id (pm_...) that we send with the booking.
+    const stripe = useStripe()
+    const elements = useElements()
+    const [cardComplete, setCardComplete] = useState(false)
+    const [cardError, setCardError] = useState(null)
+    // The pm_... id for the current attempt, reused if the same request is sent again,
+    // so a retry with the same Idempotency-Key is exactly the same request.
+    const [paymentMethodId, setPaymentMethodId] = useState(null)
 
     // Each new reservation attempt gets a new random Idempotency-Key.
     // If the same request is sent again with the same key, the server returns
@@ -38,8 +57,32 @@ function SpotPage({ spotId, token, goBack, saveReservation, demoMode }) {
         setCheckResult(await callApi('GET', '/parking-spots/' + spotId + '/availability?' + params.toString()))
     }
 
+    // Which card to charge: the card typed in Stripe's form, or the chosen test card.
+    const choosePaymentMethod = async () => {
+        if (!STRIPE_ENABLED) {
+            return testCard
+        }
+        if (paymentMethodId) {
+            return paymentMethodId
+        }
+        const { paymentMethod, error } = await stripe.createPaymentMethod({
+            type: 'card',
+            card: elements.getElement(CardElement),
+        })
+        if (error) {
+            setCardError(error.message)
+            return null
+        }
+        setPaymentMethodId(paymentMethod.id)
+        return paymentMethod.id
+    }
+
     const reserve = async (key) => {
-        const body = { startTime: toApiTime(startTime), endTime: toApiTime(endTime) }
+        const paymentMethod = await choosePaymentMethod()
+        if (!paymentMethod) {
+            return
+        }
+        const body = { startTime: toApiTime(startTime), endTime: toApiTime(endTime), paymentMethod: paymentMethod }
         const answer = await callApi('POST', '/parking-spots/' + spotId + '/reservations', token, body, {
             'Idempotency-Key': key,
         })
@@ -51,13 +94,25 @@ function SpotPage({ spotId, token, goBack, saveReservation, demoMode }) {
         }
     }
 
-    // A new time means a new reservation attempt, so it needs a new key.
+    // A new time or card means a new reservation attempt, so it needs a new key.
     const changeTime = (setter, value) => {
         setter(value)
         setIdempotencyKey(crypto.randomUUID())
+        setPaymentMethodId(null)
         setCheckResult(null)
         setReserveResult(null)
     }
+
+    // Editing the card is also a new attempt.
+    const changeCard = (event) => {
+        setCardComplete(event.complete)
+        setCardError(event.error ? event.error.message : null)
+        setIdempotencyKey(crypto.randomUUID())
+        setPaymentMethodId(null)
+        setReserveResult(null)
+    }
+
+    const canReserve = timesAreFilled && (!STRIPE_ENABLED || (stripe !== null && cardComplete))
 
     if (!spotResult) {
         return <p>Loading...</p>
@@ -108,12 +163,34 @@ function SpotPage({ spotId, token, goBack, saveReservation, demoMode }) {
                         Until
                         <input type="datetime-local" value={endTime} onChange={(e) => changeTime(setEndTime, e.target.value)} />
                     </label>
+                    {STRIPE_ENABLED ? (
+                        <label>
+                            Card
+                            <div className="card-input">
+                                <CardElement options={{ hidePostalCode: true }} onChange={changeCard} />
+                            </div>
+                            <span className="small">
+                                Test mode, no real cards: 4242 4242 4242 4242 succeeds,
+                                4000 0000 0000 0002 is declined. Any future date and any CVC.
+                            </span>
+                            {cardError && <span className="message error">{cardError}</span>}
+                        </label>
+                    ) : (
+                        <label>
+                            Test card
+                            <select value={testCard} onChange={(e) => changeTime(setTestCard, e.target.value)}>
+                                {TEST_CARDS.map((card) => (
+                                    <option key={card.value} value={card.value}>{card.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                    )}
 
                     <div className="row">
                         <button className="button secondary" disabled={!timesAreFilled} onClick={checkAvailability}>
                             Check availability
                         </button>
-                        <button className="button" disabled={!timesAreFilled} onClick={() => reserve(idempotencyKey)}>
+                        <button className="button" disabled={!canReserve} onClick={() => reserve(idempotencyKey)}>
                             Reserve
                         </button>
                     </div>
