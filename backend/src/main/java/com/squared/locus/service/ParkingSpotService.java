@@ -129,11 +129,19 @@ public class ParkingSpotService {
     public ParkingSpotPageResponse search(String location, OffsetDateTime startTime, OffsetDateTime endTime,
                                           BigDecimal maxPricePerHour, String parkingType,
                                           int limit, int offset) {
+        return search(location, startTime, endTime, maxPricePerHour, parkingType, limit, offset, "default");
+    }
+
+    @Transactional(readOnly = true)
+    public ParkingSpotPageResponse search(String location, OffsetDateTime startTime, OffsetDateTime endTime,
+                                          BigDecimal maxPricePerHour, String parkingType,
+                                          int limit, int offset, String sort) {
         checkPaging(limit, offset);
-        checkLocation(location);
-        checkOptionalInterval(startTime, endTime);
-        checkMaxPrice(maxPricePerHour);
-        ParkingType wantedType = parseParkingTypeFilter(parkingType);
+        ParkingType wantedType = validateSearchFilters(
+                new ParkingSearchFilters(location, startTime, endTime, maxPricePerHour, parkingType));
+        if (!"default".equals(sort) && !"cheapest".equals(sort)) {
+            throw new InvalidRequestException("INVALID_SORT", "Sort must be default or cheapest.");
+        }
 
         List<UUID> reservedSpotIds = new ArrayList<>();
         if (startTime != null) {
@@ -148,6 +156,10 @@ public class ParkingSpotService {
                     && (wantedType == null || wantedType == spot.getParkingType())) {
                 matches.add(spot);
             }
+        }
+
+        if ("cheapest".equals(sort)) {
+            matches.sort(Comparator.comparing(ParkingSpot::getPricePerHour));
         }
 
         int from = Math.min(offset, matches.size());
@@ -177,6 +189,13 @@ public class ParkingSpotService {
         }
 
         return new AvailabilityResponse(spotId, startTime, endTime, reason == null, reason);
+    }
+
+    ParkingType validateSearchFilters(ParkingSearchFilters filters) {
+        checkLocation(filters.location());
+        checkOptionalInterval(filters.startTime(), filters.endTime());
+        checkMaxPrice(filters.maxPricePerHour());
+        return parseParkingTypeFilter(filters.parkingType());
     }
 
     private void checkPaging(int limit, int offset) {

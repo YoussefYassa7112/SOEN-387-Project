@@ -150,3 +150,20 @@ To book with Stripe's card form, also set `VITE_STRIPE_PUBLISHABLE_KEY` (the **t
 ## Secrets
 
 Never commit real credentials. `.env` files are ignored by Git; only the `.env.example` templates are tracked.
+
+## Demo parking discovery
+
+- Set `GEMINI_API_KEY` in the backend environment. The model defaults to
+  `gemini-3.1-flash-lite` and can be changed with `GEMINI_MODEL`. If Gemini
+  returns HTTP 503, the backend makes one attempt with `gemini-3.5-flash-lite`.
+- Sign in on the search page and try **Apply AI filters** with a query such as
+  “Parking downtown tomorrow from 2 to 4 pm for $8 an hour or less.”
+  Review the fields and select **Search**. Location still matches text in the
+  listing address, so use a place name that appears in your demo listings.
+- **Cheapest** sorts by hourly price after filtering for the requested
+  availability and before dividing the results into pages.
+
+On a deployed backend set `GEMINI_API_KEY` as a secret and set
+`FRONTEND_ORIGIN` to the public frontend origin, such as
+`https://your-frontend.example.com` (without a trailing slash). Set
+`VITE_API_BASE_URL` to the public backend origin before building the frontend.

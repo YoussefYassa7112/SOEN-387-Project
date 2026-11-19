@@ -55,6 +55,52 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /parking-spots/interpret-search:
+    post:
+      tags: [Parking Spots]
+      summary: Interpret a natural-language parking search
+      operationId: interpretParkingSearch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                  minLength: 1
+                  maxLength: 300
+      responses:
+        '200':
+          description: Suggested search filters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  location:
+                    type: [string, 'null']
+                  startTime:
+                    type: [string, 'null']
+                    format: date-time
+                  endTime:
+                    type: [string, 'null']
+                    format: date-time
+                  maxPricePerHour:
+                    type: [number, 'null']
+                  parkingType:
+                    type: [string, 'null']
+                    enum: [driveway, privateLot, garage, other, null]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: AI search is unavailable. Regular parking search remains available.
   /parking-spots:
     get:
       tags: [Parking Spots]
@@ -92,6 +138,12 @@ paths:
           in: query
           schema:
             $ref: '#/components/schemas/ParkingType'
+        - name: sort
+          in: query
+          description: Use cheapest to sort available matches by hourly price.
+          schema:
+            type: string
+            enum: [default, cheapest]
         - name: limit
           in: query
           schema:

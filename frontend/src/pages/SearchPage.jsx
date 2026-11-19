@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react'
-import { callApi, errorMessage, isSuccess, toApiTime } from '../api.js'
+import { callApi, errorMessage, isSuccess, toApiTime, toInputTime } from '../api.js'
 import SpotCard from '../components/SpotCard.jsx'
 import DemoDetails from '../components/DemoDetails.jsx'
 
 const PAGE_SIZE = 6
 
 // Home page: search active parking spots (public, no sign-in needed).
-function SearchPage({ openSpot, demoMode }) {
+function SearchPage({ openSpot, demoMode, token }) {
     const [location, setLocation] = useState('')
     const [startTime, setStartTime] = useState('')
     const [endTime, setEndTime] = useState('')
     const [maxPrice, setMaxPrice] = useState('')
     const [parkingType, setParkingType] = useState('')
+    const [query, setQuery] = useState('')
+    const [interpreting, setInterpreting] = useState(false)
+    const [aiMessage, setAiMessage] = useState('')
+    const [sort, setSort] = useState('')
     const [offset, setOffset] = useState(0)
 
     const [result, setResult] = useState(null)
@@ -25,6 +29,7 @@ function SearchPage({ openSpot, demoMode }) {
         if (endTime !== '') params.append('endTime', toApiTime(endTime))
         if (maxPrice !== '') params.append('maxPricePerHour', maxPrice)
         if (parkingType !== '') params.append('parkingType', parkingType)
+        if (sort !== '') params.append('sort', sort)
         params.append('limit', PAGE_SIZE)
         params.append('offset', newOffset)
 
@@ -44,6 +49,29 @@ function SearchPage({ openSpot, demoMode }) {
         search(0)
     }
 
+    const applyAiFilters = async () => {
+        setInterpreting(true)
+        setAiMessage('')
+        const answer = await callApi('POST', '/parking-spots/interpret-search', token, { query: query.trim() })
+        setInterpreting(false)
+        if (!isSuccess(answer)) {
+            setAiMessage(errorMessage(answer))
+            return
+        }
+
+        const filters = answer.body
+        if (Object.values(filters).every((value) => value == null)) {
+            setAiMessage('Try including an area, time range, parking type, or hourly budget.')
+            return
+        }
+        setLocation(filters.location ?? '')
+        setStartTime(filters.startTime ? toInputTime(filters.startTime) : '')
+        setEndTime(filters.endTime ? toInputTime(filters.endTime) : '')
+        setMaxPrice(filters.maxPricePerHour ?? '')
+        setParkingType(filters.parkingType ?? '')
+        setAiMessage('Review the filters, then select Search.')
+    }
+
     const page = result && isSuccess(result) ? result.body : null
 
     return (
@@ -52,6 +80,27 @@ function SearchPage({ openSpot, demoMode }) {
                 <h1>Find a parking spot</h1>
                 <p>Book a driveway, garage or private lot from people near you.</p>
 
+                <form className="card search-form" onSubmit={(event) => {
+                    event.preventDefault()
+                    if (token && !interpreting && query.trim()) applyAiFilters()
+                }}>
+                    <label className="wide">
+                        Describe the parking you need
+                        <input
+                            placeholder="Parking downtown tomorrow from 2 to 4 pm under $8 an hour"
+                            value={query}
+                            maxLength={300}
+                            onChange={(event) => setQuery(event.target.value)}
+                            disabled={!token || interpreting}
+                        />
+                    </label>
+                    <button className="button secondary" disabled={!token || interpreting || !query.trim()}>
+                        {interpreting ? 'Reading query…' : 'Apply AI filters'}
+                    </button>
+                    <p className="wide muted" role="status">
+                        {token ? aiMessage : 'Sign in to use AI search.'}
+                    </p>
+                </form>
                 <form className="card search-form" onSubmit={handleSubmit}>
                     <label className="wide">
                         Where?
@@ -77,6 +126,13 @@ function SearchPage({ openSpot, demoMode }) {
                             <option value="privateLot">Private lot</option>
                             <option value="garage">Garage</option>
                             <option value="other">Other</option>
+                        </select>
+                    </label>
+                    <label>
+                        Sort by
+                        <select value={sort} onChange={(event) => setSort(event.target.value)}>
+                            <option value="">Default</option>
+                            <option value="cheapest">Cheapest</option>
                         </select>
                     </label>
                     <button className="button">Search</button>
