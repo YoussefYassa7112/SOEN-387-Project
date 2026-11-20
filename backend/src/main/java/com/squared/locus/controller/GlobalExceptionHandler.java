@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
-
+import org.springframework.web.server.ResponseStatusException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -140,6 +140,21 @@ public class GlobalExceptionHandler {
         log.error("Unexpected error", e);
         return error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
                 "Something went wrong on our side. Please try again later.", null);
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiError> handleResponseStatus(ResponseStatusException e) {
+        HttpStatus status = HttpStatus.valueOf(e.getStatusCode().value());
+
+        if (status.is5xxServerError()) {
+            // Keep server-side details out of the response, but log them.
+            log.warn("Server-side failure with status {}: {}", status.value(), e.getReason());
+            return error(status, status.name(),
+                    "Service is temporarily unavailable. Try again later.", null);
+        }
+
+        String message = e.getReason() != null ? e.getReason() : status.getReasonPhrase();
+        return error(status, status.name(), message, null);
     }
 
     // ---- Helpers that build the response ----
