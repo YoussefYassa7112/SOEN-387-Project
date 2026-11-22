@@ -61,6 +61,7 @@ class ParkingSpotSecurityTest {
     void unauthenticatedUserCannotCreateListing() throws Exception {
 
         mockMvc.perform(post("/api/v1/parking-spots")
+                        .header("Idempotency-Key", "spot-key-123")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createRequest))
@@ -138,10 +139,11 @@ class ParkingSpotSecurityTest {
 
         ParkingSpotResponse created = mock(ParkingSpotResponse.class);
         when(created.spotId()).thenReturn(spotId);
-        when(parkingSpotService.create(eq(userA), any(CreateParkingSpotRequest.class)))
+        when(parkingSpotService.create(eq(userA), any(String.class), any(CreateParkingSpotRequest.class)))
                 .thenReturn(created);
 
         mockMvc.perform(post("/api/v1/parking-spots")
+                .header("Idempotency-Key", "spot-key-123")
                 .with(jwt().jwt(jwt ->
                         jwt.subject(userA.toString())))
                 .with(csrf())
@@ -153,6 +155,7 @@ class ParkingSpotSecurityTest {
         // The service must receive userA as the owner.
         verify(parkingSpotService).create(
                 eq(userA),
+                eq("spot-key-123"),
                 any(CreateParkingSpotRequest.class));
     }
 

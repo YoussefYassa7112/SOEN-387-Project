@@ -14,6 +14,10 @@ function MySpotsPage({ token, openSpot, demoMode }) {
     // The last create / update / deactivate call, shown in demo mode and for errors.
     const [actionResult, setActionResult] = useState(null)
     const [message, setMessage] = useState('')
+    // One Idempotency-Key per new listing. If the same create request is sent again
+    // (for example after a network error), the server returns the first listing
+    // instead of making a duplicate (Chapter 3). A new form gets a new key.
+    const [createKey, setCreateKey] = useState(crypto.randomUUID())
 
     const loadMySpots = async () => {
         setListResult(await callApi('GET', '/me/parking-spots', token))
@@ -26,8 +30,8 @@ function MySpotsPage({ token, openSpot, demoMode }) {
     }, [token])
 
     // Runs one owner action, then goes back to the list if it worked.
-    const runAction = async (method, path, body, successMessage) => {
-        const answer = await callApi(method, path, token, body)
+    const runAction = async (method, path, body, successMessage, headers) => {
+        const answer = await callApi(method, path, token, body, headers)
         setActionResult(answer)
 
         if (isSuccess(answer)) {
@@ -39,7 +43,9 @@ function MySpotsPage({ token, openSpot, demoMode }) {
         }
     }
 
-    const createSpot = (body) => runAction('POST', '/parking-spots', body, 'Your spot is listed.')
+    const createSpot = (body) => runAction('POST', '/parking-spots', body, 'Your spot is listed.', {
+        'Idempotency-Key': createKey,
+    })
     const updateSpot = (body) => runAction('PATCH', '/parking-spots/' + selectedSpot.spotId, body, 'Changes saved.')
     const saveAvailability = (body) => runAction('PUT', '/parking-spots/' + selectedSpot.spotId + '/availability', body, 'Availability saved.')
 
@@ -50,6 +56,9 @@ function MySpotsPage({ token, openSpot, demoMode }) {
     }
 
     const startEdit = (spot, newMode) => {
+        if (newMode === 'create') {
+            setCreateKey(crypto.randomUUID())
+        }
         setSelectedSpot(spot)
         setMode(newMode)
         setMessage('')

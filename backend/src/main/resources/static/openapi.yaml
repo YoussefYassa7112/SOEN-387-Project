@@ -12,9 +12,10 @@ info:
     endTime), so adjacent bookings do not conflict. All timestamps must use
     RFC 3339 with an explicit UTC offset (for example, 2026-11-12T18:00:00-05:00).
 
-    A reservation POST requires an Idempotency-Key. Retrying with the same key
-    and identical request by the same authenticated caller returns the original
-    reservation; reusing the key with a different request is an error.
+    Creating a reservation or a listing requires an Idempotency-Key. Retrying
+    with the same key and identical request by the same authenticated caller
+    returns the original response; reusing the key with a different request is
+    an error.
 
     The service enforces the no-overlap invariant atomically. Payment requests
     are delivered asynchronously; clients poll the reservation resource for
@@ -301,8 +302,14 @@ paths:
       tags: [Parking Spots]
       summary: Create a parking spot listing
       operationId: createParkingSpot
+      description: |-
+        Requires an Idempotency-Key. Retrying with the same key and the same body
+        returns the first listing instead of creating a duplicate. The same key
+        with a different body returns 409 IDEMPOTENCY_KEY_MISMATCH.
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -325,6 +332,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /parking-spots/{spotId}:
     parameters:
       - $ref: '#/components/parameters/SpotId'
@@ -621,9 +630,9 @@ components:
       in: header
       required: true
       description: |-
-        Unique client-generated key per logical reservation attempt.
-        Replays with identical caller, method, target and body return the
-        stored reservation response. Reuse with different request data is 409.
+        Unique client-generated key per logical attempt (one reservation or
+        one new listing). Replays with identical caller, method, target and
+        body return the stored response. Reuse with different request data is 409.
       schema:
         type: string
         minLength: 8

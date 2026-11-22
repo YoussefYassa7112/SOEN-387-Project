@@ -14,7 +14,9 @@ import com.squared.locus.model.AvailabilityWindow;
 import com.squared.locus.model.ParkingSpot;
 import com.squared.locus.model.ParkingSpot.ParkingType;
 import com.squared.locus.model.User;
+import com.squared.locus.repository.IdempotencyRepository;
 import com.squared.locus.repository.ParkingSpotRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.squared.locus.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,6 +54,11 @@ class ParkingSpotServiceTest {
     private UserRepository userRepository;
     @Mock
     private Geocoder geocoder;
+    @Mock
+    private IdempotencyRepository idempotencyRepository;
+
+    // A real JSON mapper, with the module for dates and times, like the one Spring gives the service.
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     private ParkingSpotService service;
 
@@ -64,7 +71,8 @@ class ParkingSpotServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ParkingSpotService(parkingSpotRepository, userRepository, geocoder);
+        service = new ParkingSpotService(parkingSpotRepository, userRepository, geocoder,
+                idempotencyRepository, objectMapper);
 
         owner = new User("google-owner", "owner@example.com", "Owner");
         stranger = new User("google-stranger", "stranger@example.com", "Stranger");
@@ -248,9 +256,10 @@ class ParkingSpotServiceTest {
         whenUserExists(owner);
         when(geocoder.findCoordinates("1455 De Maisonneuve Blvd W, Montreal"))
                 .thenReturn(new Coordinates(45.4972, -73.5790));
-        when(parkingSpotRepository.save(any(ParkingSpot.class))).thenAnswer(call -> call.getArgument(0));
+        whenKeyIsNew();
+        when(parkingSpotRepository.saveAndFlush(any(ParkingSpot.class))).thenAnswer(call -> call.getArgument(0));
 
-        ParkingSpotResponse response = service.create(ownerId, newSpotRequest());
+        ParkingSpotResponse response = service.create(ownerId, "spot-key-123", newSpotRequest());
 
         assertThat(response.latitude()).isEqualTo(45.4972);
         assertThat(response.longitude()).isEqualTo(-73.5790);
@@ -260,9 +269,10 @@ class ParkingSpotServiceTest {
     void create_mapServiceDown_spotIsStillSavedWithoutCoordinates() {
         whenUserExists(owner);
         when(geocoder.findCoordinates(any())).thenReturn(null);   // not found or not reachable
-        when(parkingSpotRepository.save(any(ParkingSpot.class))).thenAnswer(call -> call.getArgument(0));
+        whenKeyIsNew();
+        when(parkingSpotRepository.saveAndFlush(any(ParkingSpot.class))).thenAnswer(call -> call.getArgument(0));
 
-        ParkingSpotResponse response = service.create(ownerId, newSpotRequest());
+        ParkingSpotResponse response = service.create(ownerId, "spot-key-123", newSpotRequest());
 
         assertThat(response.title()).isEqualTo("Driveway near Concordia");
         assertThat(response.latitude()).isNull();
@@ -297,6 +307,69 @@ class ParkingSpotServiceTest {
         runOperation("update", ownerId);   // changes only the title and price
 
         verify(geocoder, never()).findCoordinates(any());
+    }
+
+    // ---- LOCUS-15: creating a listing is idempotent ----
+
+    @Test
+    void create_firstRequest_savesTheListingAndStoresTheAnswer() throws Exception {
+        whenUserExists(owner);
+        whenKeyIsNew();
+        when(parkingSpotRepository.saveAndFlush(any(ParkingSpot.class))).thenAnswer(call -> call.getArgument(0));
+
+        ParkingSpotResponse response = service.create(ownerId, "spot-key-123", newSpotRequest());
+
+        verify(parkingSpotRepository, times(1)).saveAndFlush(any(ParkingSpot.class));
+        verify(idempotencyRepository).complete(ownerId, "spot-key-123", objectMapper.writeValueAsString(response));
+    }
+
+    @Test
+    void create_retryWithSameKey_returnsTheFirstListingWithoutSavingAgain() throws Exception {
+        whenUserExists(owner);
+        CreateParkingSpotRequest request = newSpotRequest();
+        ParkingSpotResponse firstAnswer = new ParkingSpotResponse(spotId, ownerId, "Driveway near Concordia", null,
+                "1455 De Maisonneuve Blvd W, Montreal", null, null, null, new BigDecimal("10.00"), "driveway",
+                null, true, START, List.of());
+        String fingerprint = "CREATE_SPOT|" + objectMapper.writeValueAsString(request);
+        when(idempotencyRepository.claim(ownerId, "spot-key-123", fingerprint))
+                .thenReturn(new IdempotencyRepository.Claim(fingerprint, objectMapper.writeValueAsString(firstAnswer)));
+
+        ParkingSpotResponse response = service.create(ownerId, "spot-key-123", request);
+
+        assertThat(response.spotId()).isEqualTo(spotId);
+        verify(parkingSpotRepository, never()).saveAndFlush(any());
+        verify(geocoder, never()).findCoordinates(any());
+    }
+
+    @Test
+    void create_sameKeyDifferentBody_isRejected() {
+        whenUserExists(owner);
+        when(idempotencyRepository.claim(any(), any(), any()))
+                .thenReturn(new IdempotencyRepository.Claim("CREATE_SPOT|{\"title\":\"something else\"}", null));
+
+        assertThatThrownBy(() -> service.create(ownerId, "spot-key-123", newSpotRequest()))
+                .isInstanceOf(ConflictException.class)
+                .hasFieldOrPropertyWithValue("code", "IDEMPOTENCY_KEY_MISMATCH");
+
+        verify(parkingSpotRepository, never()).saveAndFlush(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "short", "   "})
+    void create_badIdempotencyKey_isRejected(String key) {
+        whenUserExists(owner);
+
+        assertThatThrownBy(() -> service.create(ownerId, key, newSpotRequest()))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasFieldOrPropertyWithValue("code", "INVALID_IDEMPOTENCY_KEY");
+
+        verify(parkingSpotRepository, never()).saveAndFlush(any());
+    }
+
+    // The key has not been used yet: the repository hands back an empty claim with our fingerprint.
+    private void whenKeyIsNew() {
+        when(idempotencyRepository.claim(any(), any(), any()))
+                .thenAnswer(call -> new IdempotencyRepository.Claim(call.getArgument(2), null));
     }
 
     private CreateParkingSpotRequest newSpotRequest() {
