@@ -194,7 +194,7 @@ textarea {
 
 /* ---- Buttons ---- */
 
-/* Booking picker: a month calendar, then the picked day's 1-hour slots. */
+/* Booking picker: a month calendar, then the picked day's 30-minute slots. */
 .slot-picker {
   margin-bottom: 12px;
 }

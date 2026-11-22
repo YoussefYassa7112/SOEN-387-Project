@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { toInputTime } from '../api.js'
 
-const SLOT_MINUTES = 60
+const SLOT_MINUTES = 30
 const SLOT_MS = SLOT_MINUTES * 60000
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
@@ -11,12 +11,12 @@ function dayKey(date) {
     return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate())
 }
 
-// Splits the owner's availability windows into 1-hour slots that start on the hour.
+// Splits the owner's availability windows into 30-minute slots that start on :00 or :30.
 function makeSlots(windows) {
     const slots = []
     for (const window of windows) {
         const windowEnd = new Date(window.endTime).getTime()
-        // Round the window's start up to the next full hour.
+        // Round the window's start up to the next :00 or :30.
         let start = Math.ceil(new Date(window.startTime).getTime() / SLOT_MS) * SLOT_MS
         while (start + SLOT_MS <= windowEnd) {
             slots.push({ start: new Date(start), end: new Date(start + SLOT_MS) })
@@ -33,7 +33,7 @@ function isTaken(slot, bookedTimes) {
 }
 
 // Booking picker: a month calendar (only days with free times can be picked), then that day's
-// 1-hour slots. Taken and past slots are greyed out. Click a slot to start, then a later
+// 30-minute slots. Taken and past slots are greyed out. Click a slot to start, then a later
 // slot the same day to extend the booking to it.
 // startTime / endTime are the values of the "From" / "Until" fields; onSelect(start, end) sets them.
 function TimeSlotPicker({ windows, bookedTimes, startTime, endTime, onSelect }) {
