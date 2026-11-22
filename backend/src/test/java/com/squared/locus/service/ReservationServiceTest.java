@@ -16,7 +16,7 @@ class ReservationServiceTest {
     private final ReservationRepository reservations = mock(ReservationRepository.class);
     private final ParkingSpotRepository spots = mock(ParkingSpotRepository.class);
     private final ReservationService service = new ReservationService(reservations,
-            spots, mock(ReservationIdempotencyRepository.class), new ObjectMapper(),
+            spots, mock(IdempotencyRepository.class), new ObjectMapper(),
             mock(PaymentOutboxRepository.class));
     private final UUID driver = UUID.randomUUID();
     private final UUID id = UUID.randomUUID();

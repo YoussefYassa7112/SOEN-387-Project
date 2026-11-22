@@ -23,7 +23,7 @@ import com.squared.locus.model.Reservation;
 import com.squared.locus.model.PaymentOutboxEvent;
 import com.squared.locus.repository.ParkingSpotRepository;
 import com.squared.locus.repository.PaymentOutboxRepository;
-import com.squared.locus.repository.ReservationIdempotencyRepository;
+import com.squared.locus.repository.IdempotencyRepository;
 import com.squared.locus.repository.ReservationRepository;
 
 @Service
@@ -33,7 +33,7 @@ public class ReservationService {
     // Loads and locks the parking spot were going to find
     private final ParkingSpotRepository parkingSpotRepository;
     // Prevent duplicate retries
-    private final ReservationIdempotencyRepository idempotencyRepository;
+    private final IdempotencyRepository idempotencyRepository;
     // Serializes and deserializing stored reservation responses
     private final ObjectMapper objectMapper;
     // LOCUS-38: "this reservation needs to be paid", picked up later by PaymentWorker
@@ -44,7 +44,7 @@ public class ReservationService {
 
     public ReservationService(ReservationRepository reservationRepository,
                               ParkingSpotRepository parkingSpotRepository,
-                              ReservationIdempotencyRepository idempotencyRepository,
+                              IdempotencyRepository idempotencyRepository,
                               ObjectMapper objectMapper,
                               PaymentOutboxRepository paymentOutboxRepository) {
         this.reservationRepository = reservationRepository;
