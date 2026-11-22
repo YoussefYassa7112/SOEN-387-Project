@@ -281,6 +281,27 @@ class ApiConformanceTest {
                 .andExpect(openApi().isValid(contract));
     }
 
+    // Booked times for the booking grid: public (no token) and matches the contract.
+    @Test
+    void bookedTimesReturnsTakenWindows() throws Exception {
+        when(parkingSpotService.getBookedTimes(spotId))
+                .thenReturn(List.of(new AvailabilityPeriodResponse(start, start.plusHours(2))));
+
+        mockMvc.perform(get("/api/v1/parking-spots/{spotId}/booked-times", spotId))
+                .andExpect(status().isOk())
+                .andExpect(openApi().isValid(contract));
+    }
+
+    @Test
+    void bookedTimesForUnknownSpotIsNotFound() throws Exception {
+        when(parkingSpotService.getBookedTimes(spotId))
+                .thenThrow(new NotFoundException("SPOT_NOT_FOUND", "Parking spot not found."));
+
+        mockMvc.perform(get("/api/v1/parking-spots/{spotId}/booked-times", spotId))
+                .andExpect(status().isNotFound())
+                .andExpect(openApi().isValid(contract));
+    }
+
     @Test
     void checkAvailabilityWithoutTimesIsBadRequest() throws Exception {
         // startTime and endTime are required, so only the response is checked.

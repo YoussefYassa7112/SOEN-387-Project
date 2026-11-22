@@ -11,6 +11,7 @@ import com.squared.locus.integration.Geocoder;
 import com.squared.locus.model.AvailabilityWindow;
 import com.squared.locus.model.ParkingSpot;
 import com.squared.locus.model.ParkingSpot.ParkingType;
+import com.squared.locus.model.Reservation;
 import com.squared.locus.repository.IdempotencyRepository;
 import com.squared.locus.repository.ParkingSpotRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -279,6 +280,18 @@ public class ParkingSpotService {
         }
 
         return new AvailabilityResponse(spotId, startTime, endTime, reason == null, reason);
+    }
+
+    // The upcoming times that are already taken on this spot, so the booking page can grey them out.
+    // Only the times are returned, never who booked them.
+    @Transactional(readOnly = true)
+    public List<AvailabilityPeriodResponse> getBookedTimes(UUID spotId) {
+        if (!parkingSpotRepository.existsById(spotId)) {
+            throw new NotFoundException("SPOT_NOT_FOUND", "Parking spot not found.");
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        return parkingSpotRepository.findBookedTimes(spotId, now, PaymentHold.cutoff(now),
+                Reservation.Status.CONFIRMED, Reservation.Status.PENDING_PAYMENT);
     }
 
     ParkingType validateSearchFilters(ParkingSearchFilters filters) {

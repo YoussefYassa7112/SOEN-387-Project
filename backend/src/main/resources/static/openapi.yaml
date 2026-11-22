@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Locus Parking Rental API
-  version: 1.1.0
+  version: 1.2.0
   description: |-
     Contract-first REST API for Locus, a peer-to-peer parking rental service.
     Owners list parking spaces; drivers search and reserve a specific space for
@@ -449,6 +449,32 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /parking-spots/{spotId}/booked-times:
+    parameters:
+      - $ref: '#/components/parameters/SpotId'
+    get:
+      tags: [Parking Spots]
+      summary: List the upcoming times already taken on a spot
+      operationId: getParkingSpotBookedTimes
+      description: |-
+        Added in 1.2.0 (backward compatible: a new operation). Returns the time
+        windows that already block the spot from now on: confirmed reservations
+        and unpaid ones whose 5-minute payment hold has not expired. Only times
+        are returned, never who booked them. Used by clients to grey out taken
+        times; the reservation request still checks availability itself.
+      responses:
+        '200':
+          description: Taken time windows, earliest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TimeWindow'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /parking-spots/{spotId}/reservations:
     parameters:
       - $ref: '#/components/parameters/SpotId'

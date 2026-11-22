@@ -194,6 +194,111 @@ textarea {
 
 /* ---- Buttons ---- */
 
+/* Booking picker: a month calendar, then the picked day's 30-minute slots. */
+.slot-picker {
+  margin-bottom: 12px;
+}
+
+.calendar {
+  max-width: 300px;
+  margin-bottom: 10px;
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.calendar-nav {
+  font: inherit;
+  font-size: 18px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+
+.calendar-weekday {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.calendar-day {
+  font: inherit;
+  font-size: 13px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.calendar-day:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+
+.calendar-day.selected {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* Days with no free time: greyed out, cannot be picked. */
+.calendar-day:disabled {
+  background: transparent;
+  border-color: transparent;
+  color: #c4c8ce;
+  cursor: not-allowed;
+}
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.slot {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.slot:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+
+.slot.selected {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* Taken or past: greyed out and crossed out. */
+.slot:disabled {
+  background: #eef0f3;
+  color: #a0a6ae;
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
 .button {
   font: inherit;
   padding: 9px 16px;
