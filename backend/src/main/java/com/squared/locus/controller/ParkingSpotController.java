@@ -30,11 +30,12 @@ public class ParkingSpotController {
     @PostMapping("/parking-spots")
     public ResponseEntity<ParkingSpotResponse> create(
             @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody CreateParkingSpotRequest request) {
 
         UUID callerId = UUID.fromString(jwt.getSubject());
 
-        ParkingSpotResponse created = parkingSpotService.create(callerId, request);
+        ParkingSpotResponse created = parkingSpotService.create(callerId, idempotencyKey, request);
 
         return ResponseEntity
                 .created(URI.create("/api/v1/parking-spots/" + created.spotId()))

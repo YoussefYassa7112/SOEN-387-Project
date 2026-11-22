@@ -24,6 +24,14 @@ server:
     include-stacktrace: never
     include-message: never
 
+logging:
+  structured:
+    format:
+      # Structured logs (Chapter 11): every line is one JSON object (Elastic Common Schema),
+      # and it includes the correlationId from CorrelationIdFilter, so all the lines of one
+      # request can be found by searching for its X-Correlation-Id.
+      console: ecs
+
 management:
   endpoints:
     web:
@@ -34,6 +42,12 @@ management:
       probes:
         enabled: true
       show-details: never
+      group:
+        # Liveness = "the process is alive" (if not, restart it).
+        # Readiness = "it can serve requests now", which needs the database, so it
+        # reports DOWN (503) when Neon cannot be reached and no traffic is sent to it.
+        readiness:
+          include: readinessState,db
   health:
     livenessState:
       enabled: true

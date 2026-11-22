@@ -5,15 +5,17 @@ import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-// Stores and retrieves retry information for reservation requests.
-// Makes reservation creation safe (idempotent) to retrying the same request multiple times.
+// Stores and retrieves retry information for unsafe POST requests (Chapter 3).
+// Used by "reserve a spot" and "create a listing", so retrying the same request is safe.
+// The table is still called reservation_idempotency because reservations used it first;
+// the request fingerprint says which kind of request a key was used for.
 @Repository
-public class ReservationIdempotencyRepository {
+public class IdempotencyRepository {
 
     // Will be accessed with direct SQL queries, because we want to lock the row for the duration of the service transaction.
     private final JdbcTemplate jdbc;
 
-    public ReservationIdempotencyRepository(JdbcTemplate jdbc) {
+    public IdempotencyRepository(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
@@ -42,6 +44,6 @@ public class ReservationIdempotencyRepository {
                 + "WHERE user_id = ? AND idempotency_key = ?", responseJson, userId, key);
     }
 
-    // Represents a claim on a reservation idempotency key, to avoid returning databse row directly.
+    // Represents a claim on an idempotency key, to avoid returning databse row directly.
     public record Claim(String fingerprint, String responseJson) {}
 }

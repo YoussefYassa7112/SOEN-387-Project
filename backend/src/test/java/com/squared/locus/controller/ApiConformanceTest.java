@@ -183,10 +183,11 @@ class ApiConformanceTest {
 
     @Test
     void createParkingSpotReturnsCreated() throws Exception {
-        when(parkingSpotService.create(eq(userId), any(CreateParkingSpotRequest.class)))
+        when(parkingSpotService.create(eq(userId), eq("spot-key-123"), any(CreateParkingSpotRequest.class)))
                 .thenReturn(sampleSpot());
 
         mockMvc.perform(post("/api/v1/parking-spots")
+                        .header("Idempotency-Key", "spot-key-123")
                         .with(jwt().jwt(token -> token.subject(userId.toString())))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(spotBody))
@@ -197,6 +198,7 @@ class ApiConformanceTest {
     @Test
     void createParkingSpotWithoutTokenIsUnauthorized() throws Exception {
         mockMvc.perform(post("/api/v1/parking-spots")
+                        .header("Idempotency-Key", "spot-key-123")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(spotBody))
                 .andExpect(status().isUnauthorized())
@@ -206,6 +208,7 @@ class ApiConformanceTest {
     @Test
     void createParkingSpotWithInvalidTokenIsUnauthorized() throws Exception {
         mockMvc.perform(post("/api/v1/parking-spots")
+                        .header("Idempotency-Key", "spot-key-123")
                         .header("Authorization", "Bearer not-a-real-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(spotBody))

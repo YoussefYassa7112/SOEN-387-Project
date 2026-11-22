@@ -11,7 +11,11 @@ import com.squared.locus.integration.Geocoder;
 import com.squared.locus.model.AvailabilityWindow;
 import com.squared.locus.model.ParkingSpot;
 import com.squared.locus.model.ParkingSpot.ParkingType;
+import com.squared.locus.repository.IdempotencyRepository;
 import com.squared.locus.repository.ParkingSpotRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
@@ -29,17 +33,39 @@ public class ParkingSpotService {
     private final ParkingSpotRepository parkingSpotRepository;
     private final UserRepository userRepository;
     private final Geocoder geocoder;
+    private final IdempotencyRepository idempotencyRepository;
+    private final ObjectMapper objectMapper;
 
     public ParkingSpotService(ParkingSpotRepository parkingSpotRepository, UserRepository userRepository,
-                              Geocoder geocoder) {
+                              Geocoder geocoder, IdempotencyRepository idempotencyRepository,
+                              ObjectMapper objectMapper) {
         this.parkingSpotRepository = parkingSpotRepository;
         this.userRepository = userRepository;
         this.geocoder = geocoder;
+        this.idempotencyRepository = idempotencyRepository;
+        this.objectMapper = objectMapper;
     }
 
+    // LOCUS-15: create a listing. Like booking, this POST needs an Idempotency-Key (Chapter 3):
+    // if the owner's connection drops and the app sends the same request again, they get the
+    // first listing back instead of a duplicate. The key and the listing are saved in the same
+    // transaction, so either both exist or neither does.
     @Transactional
-    public ParkingSpotResponse create(UUID callerId,CreateParkingSpotRequest request) {
+    public ParkingSpotResponse create(UUID callerId, String idempotencyKey, CreateParkingSpotRequest request) {
         User owner = findUser(callerId);
+        checkIdempotencyKey(idempotencyKey);
+
+        // The fingerprint is the whole request body, so the same key with a different body is caught.
+        String fingerprint = "CREATE_SPOT|" + toJson(request);
+        var claim = idempotencyRepository.claim(owner.getId(), idempotencyKey, fingerprint);
+        if (!claim.fingerprint().equals(fingerprint)) {
+            throw new ConflictException("IDEMPOTENCY_KEY_MISMATCH",
+                    "The idempotency key was already used for a different request.");
+        }
+        if (claim.responseJson() != null) {
+            return readStoredResponse(claim.responseJson());   // a retry: send back the first answer
+        }
+
         List<AvailabilityWindow> windows = toValidatedWindows(request.availabilityWindows());
         // LOCUS-52: turn the address into map coordinates (null if it cannot be found).
         Coordinates coordinates = geocoder.findCoordinates(request.address());
@@ -56,7 +82,37 @@ public class ParkingSpotService {
         );
         spot.replaceAvailabilityWindows(windows);
         setCoordinates(spot, coordinates);
-        return toResponse(parkingSpotRepository.save(spot));
+        ParkingSpotResponse response = toResponse(parkingSpotRepository.saveAndFlush(spot));
+
+        idempotencyRepository.complete(owner.getId(), idempotencyKey, toJson(response));
+        return response;
+    }
+
+    private void checkIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()
+                || idempotencyKey.length() < 8 || idempotencyKey.length() > 128) {
+            throw new InvalidRequestException("INVALID_IDEMPOTENCY_KEY",
+                    "Idempotency-Key must contain 8 to 128 characters and cannot be blank.");
+        }
+    }
+
+    private String toJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Cannot write JSON", e);
+        }
+    }
+
+    private ParkingSpotResponse readStoredResponse(String json) {
+        try {
+            // Keep the time zones exactly as they were stored, so the replay is the same answer.
+            return objectMapper.readerFor(ParkingSpotResponse.class)
+                    .without(DeserializationFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE)
+                    .readValue(json);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Cannot read stored parking spot response", e);
+        }
     }
 
     @Transactional

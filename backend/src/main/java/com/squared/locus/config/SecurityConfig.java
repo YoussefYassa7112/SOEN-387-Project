@@ -15,6 +15,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.firewall.RequestRejectedHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -103,6 +104,25 @@ public class SecurityConfig {
                 .formLogin(form -> form.disable())
 
                 .build();
+    }
+
+    // Spring Security blocks suspicious URLs before any controller runs, for example
+    // "//api/v1/..." or "/api/v1/..%2F..". Without this, the caller got Spring's default
+    // error page. Now it is a normal 400 in our ApiError shape: never a crash, never a
+    // stack trace (course brief, non-functional requirements).
+    @Bean
+    public RequestRejectedHandler requestRejectedHandler() {
+        return (request, response, rejected) -> {
+            ApiError error = new ApiError(
+                    "INVALID_REQUEST_PATH",
+                    "The request URL is not allowed. Check for double slashes or encoded characters.",
+                    MDC.get(CorrelationIdFilter.MDC_KEY),
+                    null
+            );
+            response.setStatus(HttpStatus.BAD_REQUEST.value());
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            new ObjectMapper().writeValue(response.getOutputStream(), error);
+        };
     }
 
     // Writes the 401 error body in the same ApiError shape as every other error.

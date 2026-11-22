@@ -10,6 +10,7 @@ import com.squared.locus.repository.PaymentOutboxRepository;
 import com.squared.locus.repository.ReservationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +50,11 @@ public class PaymentProcessor {
         }
         PaymentOutboxEvent event = next.get();
         Reservation reservation = reservationRepository.findById(event.getReservationId()).orElseThrow();
+
+        // This runs outside any HTTP request, so there is no request correlation id.
+        // Use the reservation id instead: every log line about this payment can be found
+        // by searching for it. PaymentWorker removes it after each payment.
+        MDC.put("correlationId", "payment-" + reservation.getId());
 
         // Already settled some other way (e.g. cancelled): nothing to charge.
         if (reservation.getStatus() != Reservation.Status.PENDING_PAYMENT) {
