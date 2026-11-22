@@ -162,6 +162,15 @@ public class ReservationService {
 
         // Now that we hold the lock, read the status again: the worker may have just changed it.
         Reservation.Status currentStatus = reservationRepository.findStatusById(reservationId);
+
+        // Already cancelled, for example the app sent the DELETE again after a timeout.
+        // DELETE must be safe to repeat (Chapter 3), so answer the same as the first time
+        // instead of an error. Nothing changes in the database.
+        if (currentStatus == Reservation.Status.CANCELLED) {
+            reservation.cancel();
+            return ReservationResponse.from(reservation);
+        }
+
         if (!Reservation.canCancel(currentStatus, reservation.getStartTime(), OffsetDateTime.now())) {
             throw new ConflictException("RESERVATION_NOT_CANCELLABLE",
                     "Only upcoming reservations that are waiting for payment or confirmed can be cancelled.");

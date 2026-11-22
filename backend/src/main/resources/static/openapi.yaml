@@ -531,7 +531,9 @@ paths:
       operationId: cancelReservation
       description: |-
         Only the reserving driver may cancel. The domain cancellation policy
-        determines eligibility; ineligible cancellation returns 409. Payment
+        determines eligibility; ineligible cancellation returns 409. Cancelling
+        a reservation that is already cancelled is safe to repeat and returns
+        200 with the cancelled reservation. Payment
         refunds, if applicable, require a separately specified policy and are
         not promised by this v1 contract.
       security:

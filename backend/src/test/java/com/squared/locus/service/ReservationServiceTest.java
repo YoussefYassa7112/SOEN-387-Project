@@ -98,12 +98,25 @@ class ReservationServiceTest {
                         error -> assertThat(error.getCode()).isEqualTo("RESERVATION_NOT_CANCELLABLE"));
     }
 
+    // Cancelling again (a retried DELETE) gives the same answer, not an error.
     @Test
-    void cannotCancelTwice() {
+    void cancellingTwiceReturnsTheSameCancelledReservation() {
         when(reservations.findById(id)).thenReturn(Optional.of(reservation()));
         when(reservations.findStatusById(id)).thenReturn(Reservation.Status.CANCELLED);
 
+        var response = service.cancel(id, driver);
+
+        assertThat(response.status()).isEqualTo("cancelled");
+        verify(reservations, never()).save(any());
+    }
+
+    @Test
+    void cannotCancelAReservationWhosePaymentFailed() {
+        when(reservations.findById(id)).thenReturn(Optional.of(reservation()));
+        when(reservations.findStatusById(id)).thenReturn(Reservation.Status.PAYMENT_FAILED);
+
         assertThatThrownBy(() -> service.cancel(id, driver))
-                .isInstanceOf(ConflictException.class);
+                .isInstanceOfSatisfying(ConflictException.class,
+                        error -> assertThat(error.getCode()).isEqualTo("RESERVATION_NOT_CANCELLABLE"));
     }
 }
