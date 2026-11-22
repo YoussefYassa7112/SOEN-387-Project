@@ -4,6 +4,7 @@ import { callApi, errorMessage, isSuccess, showPrice, showTime, toApiTime } from
 import DemoDetails from '../components/DemoDetails.jsx'
 import DirectionsButton from '../components/DirectionsButton.jsx'
 import SpotMap from '../components/SpotMap.jsx'
+import TimeSlotPicker from '../components/TimeSlotPicker.jsx'
 import { STRIPE_ENABLED } from '../stripe.js'
 
 // Fallback when there is no Stripe publishable key: Stripe's ready-made test cards.
@@ -43,12 +44,25 @@ function SpotPage({ spotId, token, goBack, saveReservation, demoMode }) {
     const [idempotencyKey, setIdempotencyKey] = useState(crypto.randomUUID())
     const [reserveResult, setReserveResult] = useState(null)
 
+    // Times already taken on this spot, shown greyed out in the booking grid.
+    const [bookedTimes, setBookedTimes] = useState([])
+    // Increased after a successful booking, to load the taken times again.
+    const [bookedReload, setBookedReload] = useState(0)
+
     useEffect(() => {
         const loadSpot = async () => {
             setSpotResult(await callApi('GET', '/parking-spots/' + spotId))
         }
         loadSpot()
     }, [spotId])
+
+    useEffect(() => {
+        const loadBookedTimes = async () => {
+            const answer = await callApi('GET', '/parking-spots/' + spotId + '/booked-times')
+            setBookedTimes(isSuccess(answer) ? answer.body : [])
+        }
+        loadBookedTimes()
+    }, [spotId, bookedReload])
 
     const timesAreFilled = startTime !== '' && endTime !== ''
 
@@ -93,7 +107,18 @@ function SpotPage({ spotId, token, goBack, saveReservation, demoMode }) {
 
         if (answer.status === 202) {
             saveReservation(answer.body.reservationId)
+            setBookedReload(bookedReload + 1)
         }
+    }
+
+    // A time range picked in the booking grid fills both fields.
+    const selectSlots = (start, end) => {
+        setStartTime(start)
+        setEndTime(end)
+        setIdempotencyKey(crypto.randomUUID())
+        setPaymentMethodId(null)
+        setCheckResult(null)
+        setReserveResult(null)
     }
 
     // A new time or card means a new reservation attempt, so it needs a new key.
@@ -161,6 +186,13 @@ function SpotPage({ spotId, token, goBack, saveReservation, demoMode }) {
 
                 <div className="card">
                     <h2>Book this spot</h2>
+                    <TimeSlotPicker
+                        windows={spot.availabilityWindows}
+                        bookedTimes={bookedTimes}
+                        startTime={startTime}
+                        endTime={endTime}
+                        onSelect={selectSlots}
+                    />
                     <label>
                         From
                         <input type="datetime-local" value={startTime} onChange={(e) => changeTime(setStartTime, e.target.value)} />

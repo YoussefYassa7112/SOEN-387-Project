@@ -194,6 +194,47 @@ textarea {
 
 /* ---- Buttons ---- */
 
+/* Booking grid: one button per 30-minute slot. */
+.slot-picker {
+  margin-bottom: 12px;
+}
+
+.slot-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.slot {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.slot:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+
+.slot.selected {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* Taken or past: greyed out and crossed out. */
+.slot:disabled {
+  background: #eef0f3;
+  color: #a0a6ae;
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
 .button {
   font: inherit;
   padding: 9px 16px;
