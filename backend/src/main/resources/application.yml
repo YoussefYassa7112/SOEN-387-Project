@@ -24,6 +24,14 @@ server:
     include-stacktrace: never
     include-message: never
 
+logging:
+  structured:
+    format:
+      # Structured logs (Chapter 11): every line is one JSON object (Elastic Common Schema),
+      # and it includes the correlationId from CorrelationIdFilter, so all the lines of one
+      # request can be found by searching for its X-Correlation-Id.
+      console: ecs
+
 management:
   endpoints:
     web:

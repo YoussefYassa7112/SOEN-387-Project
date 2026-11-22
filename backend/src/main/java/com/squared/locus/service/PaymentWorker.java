@@ -2,6 +2,7 @@ package com.squared.locus.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -41,6 +42,8 @@ public class PaymentWorker {
             }
         } catch (RuntimeException e) {
             log.error("Payment worker round failed; will try again next round", e);
+        } finally {
+            MDC.remove("correlationId");   // the worker thread is reused, so always clean up
         }
     }
 }
