@@ -1,6 +1,7 @@
 package com.squared.locus.service;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -80,17 +81,26 @@ class ReservationConcurrencyTest {
 
     // Execute two requests concurrently
     private List<Result> race(Callable<Result> first, Callable<Result> second) throws Exception {
-        try (var executor = Executors.newFixedThreadPool(2)) {
-            var ready = new CountDownLatch(2);
+        return race(List.of(first, second));
+    }
+
+    // Execute many requests at the same moment: every thread waits at the barrier, then all start together
+    private List<Result> race(List<Callable<Result>> attempts) throws Exception {
+        try (var executor = Executors.newFixedThreadPool(attempts.size())) {
+            var ready = new CountDownLatch(attempts.size());
             var go = new CountDownLatch(1);
-            var tasks = List.of(first, second).stream().map(task -> executor.submit(() -> {
+            var tasks = attempts.stream().map(task -> executor.submit(() -> {
                 ready.countDown();
                 if (!go.await(10, TimeUnit.SECONDS)) throw new AssertionError("Start barrier timed out");
                 return task.call();
             })).toList();
             assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
             go.countDown();
-            return List.of(tasks.get(0).get(30, TimeUnit.SECONDS), tasks.get(1).get(30, TimeUnit.SECONDS));
+            var results = new ArrayList<Result>();
+            for (var task : tasks) {
+                results.add(task.get(60, TimeUnit.SECONDS));
+            }
+            return results;
         }
     }
 
@@ -130,5 +140,30 @@ class ReservationConcurrencyTest {
         assertThat(results).extracting(Result::status).containsExactlyInAnyOrder(202, 409);
         assertThat(results.stream().filter(r -> r.status == 409).findFirst().orElseThrow().body)
                 .contains("IDEMPOTENCY_KEY_MISMATCH");
+    }
+
+    // Many different drivers race for the same spot and the same hour.
+    // The spot's row lock makes them wait in line, so exactly one wins and everyone else gets 409.
+    @Test
+    void manyDriversRacingForTheSameSpotOnlyOneWins() throws Exception {
+        int drivers = 20;
+        var attempts = new ArrayList<Callable<Result>>();
+        for (int i = 0; i < drivers; i++) {
+            UUID driver = UUID.randomUUID();
+            jdbc.update("INSERT INTO users(id, google_sub, email) VALUES (?, ?, ?)",
+                    driver, driver.toString(), "driver" + i + "@example.com");
+            String key = "driver-" + i + "-key";
+            attempts.add(() -> reserve(key, driver, spot, start, start.plusHours(1)));
+        }
+
+        var results = race(attempts);
+
+        long accepted = results.stream().filter(r -> r.status == 202).count();
+        long rejected = results.stream().filter(r -> r.status == 409).count();
+        assertThat(accepted).isEqualTo(1);
+        assertThat(rejected).isEqualTo(drivers - 1);
+        assertThat(results).filteredOn(r -> r.status == 409)
+                .allMatch(r -> r.body.contains("PARKING_SPOT_UNAVAILABLE"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM reservations", Integer.class)).isEqualTo(1);
     }
 }
