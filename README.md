@@ -134,6 +134,37 @@ bash mvnw test -Dtest=ReservationConcurrencyTest
 
 The test uses local PostgreSQL by default and does not use the Neon database. Override the database settings with `-Dtest.database.url`, `-Dtest.database.username`, and `-Dtest.database.password` if needed.
 
+The test also races 20 different drivers for the same spot and hour: exactly one gets `202` and the other 19 get `409 PARKING_SPOT_UNAVAILABLE`, because the spot's row is locked while each booking is checked.
+
+### Race demo against a running backend
+
+`scripts/race-demo.mjs` sends many booking requests for the same spot and hour at the same moment and prints what each person got. It needs Node 18 or newer and no packages.
+
+```bash
+node scripts/race-demo.mjs --api http://localhost:8080 --spot <spotId> \
+  --start 2026-12-01T14:00:00-05:00 --end 2026-12-01T15:00:00-05:00 \
+  --token <jwt> --users 10
+```
+
+Pass `--token` several times to use several accounts. Pick a spot and an hour that are free. Expected result: one `202` and the rest `409`.
+
+## Running the conformance suite against the running service
+
+`ApiConformanceTest` checks the controllers with mocked services. `LiveApiConformanceTest` sends real HTTP requests to a backend that is already running and checks every answer against `openapi.yaml`. It does not use any server code and is skipped in a normal build.
+
+```bash
+cd backend
+bash mvnw test -Dtest=LiveApiConformanceTest -Dlive.baseUrl=http://localhost:8080
+```
+
+Use the deployed URL instead of localhost to check the deployed service. Add `-Dlive.token=<jwt>` to also check the endpoints that need a signed-in user.
+
+## Health checks and logs
+
+- Liveness: `/actuator/health/liveness` (the app is running).
+- Readiness: `/actuator/health/readiness` (the app and its database are ready for traffic).
+- Logs are JSON lines. Every line written while handling a request carries the request's `correlationId`, which is also returned in the `X-Correlation-Id` header and in every error body.
+
 ## Running the frontend
 
 ```bash
