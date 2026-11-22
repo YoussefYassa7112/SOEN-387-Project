@@ -69,7 +69,8 @@ public class SecurityConfig {
                                 HttpMethod.GET,
                                 "/api/v1/parking-spots",
                                 "/api/v1/parking-spots/*",
-                                "/api/v1/parking-spots/*/availability"
+                                "/api/v1/parking-spots/*/availability",
+                                "/api/v1/parking-spots/*/booked-times"
                         ).permitAll()
 
                         // Health and API documentation

@@ -116,4 +116,10 @@ public class ParkingSpotController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endTime) {
         return parkingSpotService.checkAvailability(spotId, startTime, endTime);
     }
+
+    // The times already taken on this spot, so the booking page can grey them out. Public, like search.
+    @GetMapping("/parking-spots/{spotId}/booked-times")
+    public List<AvailabilityPeriodResponse> getBookedTimes(@PathVariable UUID spotId) {
+        return parkingSpotService.getBookedTimes(spotId);
+    }
 }

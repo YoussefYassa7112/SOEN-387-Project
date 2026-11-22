@@ -10,7 +10,9 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.squared.locus.dto.AvailabilityPeriodResponse;
 import com.squared.locus.model.ParkingSpot;
+import com.squared.locus.model.Reservation;
 
 import jakarta.persistence.LockModeType;
 
@@ -45,4 +47,16 @@ public interface ParkingSpotRepository extends JpaRepository<ParkingSpot, UUID> 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from ParkingSpot p where p.id = :id and p.ownerId = :ownerId")
     Optional<ParkingSpot> findOwnedForUpdate(@Param("id") UUID id, @Param("ownerId") UUID ownerId);
+
+    // The times already taken on one spot, from now on: confirmed reservations, and unpaid ones
+    // whose hold has not expired (same rule as the booking check). Only the times, no driver data.
+    @Query("select new com.squared.locus.dto.AvailabilityPeriodResponse(r.startTime, r.endTime) "
+            + "from Reservation r where r.spotId = :spotId and r.endTime > :now "
+            + "and (r.status = :confirmed or (r.status = :pending and r.createdAt > :holdCutoff)) "
+            + "order by r.startTime")
+    List<AvailabilityPeriodResponse> findBookedTimes(@Param("spotId") UUID spotId,
+                                                     @Param("now") OffsetDateTime now,
+                                                     @Param("holdCutoff") OffsetDateTime holdCutoff,
+                                                     @Param("confirmed") Reservation.Status confirmed,
+                                                     @Param("pending") Reservation.Status pending);
 }
